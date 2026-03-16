@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mazhar Surgical Hospital HMS</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#0a7c6e;--teal-dark:#065a50;--cream:#f9f6f0;--slate:#2d3748;--muted:#718096;--border:#e2e8f0;--red:#e53e3e;--green:#38a169;--amber:#d69e2e;--blue:#3182ce;--purple:#6b46c1;--shadow:0 4px 24px rgba(10,124,110,0.10);--r:14px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--slate);min-height:100vh;}
+/* LOADING */
+#loading{position:fixed;inset:0;background:linear-gradient(135deg,#065a50,#0a7c6e);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:white;}
+#loading h1{font-family:'DM Serif Display',serif;font-size:32px;margin-top:16px;}
+#loading p{opacity:.7;margin-top:8px;font-size:14px;}
+.spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+/* LOGIN */
+#login-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,#065a50 0%,#0a7c6e 50%,#12a090 100%);}
+.lcard{background:white;border-radius:24px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.18);}
+.llogo{text-align:center;margin-bottom:32px;}
+.llogo h1{font-family:'DM Serif Display',serif;font-size:28px;color:var(--teal-dark);}
+.llogo p{color:var(--muted);font-size:13px;margin-top:4px;}
+.fg{margin-bottom:18px;}
+.fg label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+.fg input,.fg select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;transition:border .2s;background:#fafafa;}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--teal);background:white;}
+.btn-prim{width:100%;padding:13px;background:var(--teal);color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px;}
+.btn-prim:hover{background:var(--teal-dark);}
+.emsg{color:var(--red);font-size:13px;text-align:center;margin-top:10px;min-height:20px;}
+/* LAYOUT */
+#app{display:none;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:245px;background:var(--teal-dark);color:white;display:flex;flex-direction:column;z-index:100;}
+.sbh{padding:22px 20px 14px;border-bottom:1px solid rgba(255,255,255,.1);}
+.sbh h2{font-family:'DM Serif Display',serif;font-size:19px;}
+.sbh span{font-size:11px;opacity:.55;text-transform:uppercase;letter-spacing:1px;}
+.sbu{padding:13px 20px;background:rgba(0,0,0,.18);font-size:13px;}
+.sbu strong{display:block;font-weight:600;}
+.rp{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
+.rp-admin{background:#fed7d7;color:#9b2c2c;}.rp-doctor{background:#bee3f8;color:#2c5282;}.rp-staff{background:#c6f6d5;color:#276749;}
+nav{flex:1;padding:14px 0;overflow-y:auto;}
+nav a{display:flex;align-items:center;gap:10px;padding:11px 20px;color:rgba(255,255,255,.75);font-size:14px;font-weight:500;cursor:pointer;border-left:3px solid transparent;transition:all .15s;}
+nav a:hover,nav a.active{background:rgba(255,255,255,.12);color:white;border-left-color:#7ee8db;}
+.sbf{padding:14px 20px;border-top:1px solid rgba(255,255,255,.1);}
+.btnlo{width:100%;padding:10px;background:rgba(255,255,255,.1);color:white;border:1px solid rgba(255,255,255,.2);border-radius:8px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.btnlo:hover{background:rgba(255,0,0,.3);}
+.mc{margin-left:245px;min-height:100vh;padding:30px;}
+.page{display:none;}.page.active{display:block;}
+.pgh{margin-bottom:26px;}
+.pgh h2{font-family:'DM Serif Display',serif;font-size:26px;color:var(--teal-dark);}
+.pgh p{color:var(--muted);font-size:14px;margin-top:3px;}
+/* STATS */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:16px;margin-bottom:26px;}
+.sc{background:white;border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);border-left:4px solid var(--teal);}
+.sc.am{border-left-color:var(--amber);}.sc.bl{border-left-color:var(--blue);}.sc.rd{border-left-color:var(--red);}.sc.pu{border-left-color:var(--purple);}.sc.gr{border-left-color:var(--green);}
+.sc .lb{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.sc .vl{font-size:28px;font-weight:700;color:var(--slate);margin-top:5px;font-family:'DM Serif Display',serif;}
+.sc .sb{font-size:12px;color:var(--muted);margin-top:3px;}
+/* CARD */
+.card{background:white;border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-bottom:22px;}
+.ch{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.ch h3{font-family:'DM Serif Display',serif;font-size:17px;color:var(--teal-dark);}
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:#f0faf9;color:var(--teal-dark);font-weight:600;padding:11px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:2px solid var(--border);}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#f9fefd;}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.bg{background:#c6f6d5;color:#276749;}.br{background:#fed7d7;color:#9b2c2c;}.ba{background:#fef3c7;color:#92400e;}.bb{background:#bee3f8;color:#2c5282;}.bpu{background:#e9d8fd;color:#553c9a;}.bgr{background:#e2e8f0;color:#4a5568;}
+/* FORM */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;}
+.fs{margin-bottom:24px;}
+.fst{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+.fl label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;}
+.fl input,.fl select,.fl textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;transition:border .2s;background:#fafafa;}
+.fl input:focus,.fl select:focus,.fl textarea:focus{outline:none;border-color:var(--teal);background:white;}
+.fl textarea{resize:vertical;min-height:80px;}
+.btn{padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.bt{background:var(--teal);color:white;}.bt:hover{background:var(--teal-dark);}
+.bo{background:transparent;border:1.5px solid var(--border);color:var(--slate);}.bo:hover{border-color:var(--teal);color:var(--teal);}
+.bred{background:var(--red);color:white;}.bred:hover{background:#c53030;}
+.bsm{padding:5px 11px;font-size:12px;}
+.brow{display:flex;gap:8px;flex-wrap:wrap;}
+/* MODAL */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.mo.open{opacity:1;pointer-events:auto;}
+.md{background:white;border-radius:16px;padding:28px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,.2);transform:scale(.95);transition:transform .2s;}
+.mo.open .md{transform:scale(1);}
+.mh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;}
+.mh h3{font-family:'DM Serif Display',serif;font-size:20px;color:var(--teal-dark);}
+.mclose{background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);}
+/* ALERT */
+.alert{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;}
+.as{background:#c6f6d5;color:#276749;}.ae{background:#fed7d7;color:#9b2c2c;}.ai{background:#bee3f8;color:#2c5282;}
+/* TOKEN */
+.tcard{background:white;border:2px solid var(--teal);border-radius:14px;max-width:400px;margin:0 auto;overflow:hidden;}
+.ttop{background:linear-gradient(135deg,var(--teal-dark),var(--teal));color:white;padding:18px 22px;text-align:center;}
+.ttop h2{font-family:'DM Serif Display',serif;font-size:19px;}
+.ttop p{font-size:11px;opacity:.8;margin-top:2px;}
+.tnum{font-size:54px;font-weight:700;font-family:'DM Serif Display',serif;margin:6px 0;letter-spacing:2px;}
+.ttime{font-size:13px;opacity:.85;background:rgba(255,255,255,.15);display:inline-block;padding:3px 12px;border-radius:20px;}
+.tbody{padding:18px 22px;}
+.trow{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px dotted #e2e8f0;font-size:13px;}
+.trow:last-child{border-bottom:none;}
+.tl{color:var(--muted);font-size:12px;min-width:100px;}
+.tv{font-weight:600;color:var(--slate);text-align:right;flex:1;}
+.tsec{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--teal);font-weight:700;margin:12px 0 5px;padding-top:9px;border-top:1px solid var(--border);}
+.vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:9px 0;}
+.vb{background:#f0faf9;border-radius:7px;padding:9px;text-align:center;}
+.vv{font-size:15px;font-weight:700;color:var(--teal-dark);}
+.vl2{font-size:10px;color:var(--muted);margin-top:2px;}
+.rxbox{background:#fffbf0;border:1px dashed var(--amber);border-radius:9px;padding:13px;margin-top:11px;min-height:75px;}
+.rxt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--amber);margin-bottom:5px;}
+.rxc{font-size:13px;color:var(--slate);white-space:pre-wrap;}
+.tfoot{background:#f9f6f0;padding:11px 22px;text-align:center;font-size:11px;color:var(--muted);border-top:1px solid var(--border);}
+/* QUEUE */
+.qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-top:18px;}
+.qcard{background:white;border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow);border:2px solid transparent;transition:border .2s;}
+.qcard:hover{border-color:#12a090;}
+.qnum{display:inline-flex;align-items:center;padding:3px 11px;border-radius:20px;font-weight:700;font-size:15px;background:#f0faf9;color:var(--teal-dark);border:2px solid var(--teal);}
+.qvit{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;}
+.qv{background:#f0faf9;border-radius:5px;padding:3px 9px;font-size:12px;color:var(--teal-dark);font-weight:600;}
+/* BUDGET */
+.budget-bar{background:#e2e8f0;border-radius:20px;height:10px;margin-top:8px;overflow:hidden;}
+.budget-fill{height:100%;border-radius:20px;background:var(--teal);transition:width .5s;}
+.budget-fill.warn{background:var(--amber);}
+.budget-fill.over{background:var(--red);}
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--border);padding:4px;border-radius:10px;margin-bottom:22px;width:fit-content;}
+.tab{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;}
+.tab.active{background:white;color:var(--teal-dark);box-shadow:0 2px 8px rgba(0,0,0,.08);}
+/* MISC */
+.fr{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.fr input,.fr select{padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;}
+.fr input:focus,.fr select:focus{outline:none;border-color:var(--teal);}
+.empty{text-align:center;padding:44px 20px;color:var(--muted);}
+.empty .eico{font-size:38px;margin-bottom:10px;}
+.empty h4{font-size:15px;font-weight:600;color:var(--slate);}
+.dc{background:linear-gradient(135deg,var(--teal-dark),var(--teal));color:white;border-radius:var(--r);padding:18px 22px;}
+.dc .dl{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.5px;}
+.dc .dv{font-size:24px;font-weight:700;margin-top:3px;font-family:'DM Serif Display',serif;}
+.saving{position:fixed;bottom:20px;right:20px;background:var(--teal-dark);color:white;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:500;opacity:0;transition:opacity .3s;}
+.saving.show{opacity:1;}
+/* Prescription autocomplete */
+.rx-ac-list{position:absolute;left:0;right:0;background:white;border:1.5px solid var(--teal);border-radius:0 0 10px 10px;box-shadow:0 8px 24px rgba(10,124,110,.15);z-index:1000;max-height:220px;overflow-y:auto;}
+.rx-ac-item{padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.rx-ac-item:last-child{border-bottom:none;}
+.rx-ac-item:hover,.rx-ac-item.selected{background:#f0faf9;}
+.rx-ac-item .drug-name{font-weight:600;color:var(--teal-dark);}
+.rx-ac-item .drug-class{font-size:11px;color:var(--muted);}
+.saving.show{opacity:1;}
+@media print{body *{visibility:hidden;}#pz,#pz *{visibility:visible;}#pz{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <h1>🏥 Mazhar Surgical Hospital HMS</h1>
+  <p>Connecting to database...</p>
+</div>
+
+<div id="pz" style="display:none;"></div>
+<div class="saving" id="savingToast">💾 Saving...</div>
+<div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:#d69e2e;color:white;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;">⚠ You are offline — changes will sync automatically when connection returns.</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;">
+  <!-- Shows as flex when displayed -->
+  <div class="lcard">
+    <div class="llogo">
+      <div style="font-size:36px;">🏥</div>
+      <h1>Mazhar Surgical Hospital HMS</h1>
+      <p>Hospital Management System</p>
+    </div>
+    <div class="fg"><label>Email Address</label><input type="email" id="lu" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="fg"><label>Password</label><input type="password" id="lp" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn-prim" onclick="doLogin()" id="lbtn">Sign In →</button>
+    <div class="emsg" id="le"></div>
+    <div style="margin-top:18px;padding:13px;background:#f0faf9;border-radius:10px;font-size:12px;color:#065a50;line-height:1.8;">
+      <strong>First time?</strong> Follow the setup guide to create your admin account in Firebase, then log in here.<br>
+      Each staff member logs in with their email and password set by admin.
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sbh"><h2>🏥 Mazhar Surgical Hospital</h2><span>Hospital Management</span></div>
+    <div class="sbu"><strong id="sbn">—</strong><span class="rp" id="srp"></span></div>
+    <nav id="snav"></nav>
+    <div class="sbf"><button class="btnlo" onclick="doLogout()">⎋ Sign Out</button></div>
+  </div>
+  <div class="mc">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div id="db-warn" style="display:none;background:#fed7d7;border:1px solid #feb2b2;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:#9b2c2c;"></div>
+      <div class="pgh"><h2>Dashboard</h2><p id="dg"></p></div>
+      <div class="sg" id="dstats"></div>
+      <div class="card" id="setup-checklist" style="margin-bottom:22px;">
+        <div class="ch"><h3>🔧 Firebase Setup Checklist</h3><button class="btn bo bsm" onclick="document.getElementById('setup-checklist').style.display='none'">Hide</button></div>
+        <div style="padding:16px 22px;font-size:13px;line-height:2.2;">
+          <div id="chk-auth" style="color:var(--green);">✅ Logged in successfully</div>
+          <div id="chk-staff">⏳ Loading staff...</div>
+          <div id="chk-patients">⏳ Loading patients...</div>
+          <div id="chk-tokens">⏳ Loading tokens...</div>
+          <div id="chk-expenses">⏳ Loading expenses...</div>
+          <div id="chk-consumables">⏳ Loading consumables...</div>
+          <div id="chk-rules" style="color:var(--muted);">
+            📋 <strong>Firestore Rules</strong> — Go to 
+            <a href="https://console.firebase.google.com/project/mazhar-surgical-hospital/firestore/rules" target="_blank" style="color:var(--teal);">Firebase Console → Firestore → Rules</a>
+            and make sure the rules say <code>allow read, write: if request.auth != null;</code>
+          </div>
+          <div id="chk-index" style="color:var(--muted);">
+            📋 <strong>Missing Index?</strong> If patients fail, open 
+            <a href="https://console.firebase.google.com/project/mazhar-surgical-hospital/firestore/indexes" target="_blank" style="color:var(--teal);">Firebase Console → Firestore → Indexes</a>
+            and create a composite index: Collection=<code>patients</code>, Field=<code>timestamp</code> Descending, Query scope=Collection.
+          </div>
+          <div style="color:var(--muted);margin-top:6px;">💡 Open browser <strong>F12 → Console tab</strong> to see exact error messages.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><h3>Recent Patients</h3><span id="dfl" style="font-size:12px;color:var(--muted);"></span></div>
+        <div class="tw"><table>
+          <thead><tr><th>#</th><th>Patient</th><th>Doctor</th><th>Complaint</th><th>Fee</th><th>Vitals</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="dtbl"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- INTAKE -->
+    <div class="page" id="page-intake">
+      <div class="pgh"><h2>Register Patient</h2><p>Add new patient → record vitals → print token → sends to Waiting Queue</p></div>
+      <div class="card" style="padding:26px 26px 6px;">
+        <div style="background:#e6fffa;border:1px solid #b2f5ea;border-radius:8px;padding:11px 15px;margin-bottom:14px;font-size:13px;color:#234e52;"><strong>📋 When to use this:</strong> Patient arrives at reception → fill this form → print token → patient waits → doctor sees them in the Waiting Queue.</div><div id="ia"></div>
+        <div class="fs"><div class="fst">👤 Patient Information</div>
+          <div class="fgrid">
+            <div class="fl"><label>Patient Name *</label><input type="text" id="i-nm" placeholder="Full name"></div>
+            <div class="fl"><label>Age</label><input type="text" id="i-age" placeholder="35"></div>
+            <div class="fl"><label>Gender</label><select id="i-gen"><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+            <div class="fl"><label>Phone</label><input type="text" id="i-ph" placeholder="03xx-xxxxxxx"></div>
+            <div class="fl"><label>Complaint *</label><input type="text" id="i-cf" placeholder="e.g. Fever, Chest Pain"></div>
+            <div class="fl"><label>Assign Doctor *</label><select id="i-doc"><option value="">— Select Doctor —</option></select></div>
+          </div>
+        </div>
+        <div class="fs"><div class="fst">🩺 Vital Signs</div>
+          <div class="fgrid">
+            <div class="fl"><label>Blood Pressure</label><input type="text" id="i-bp" placeholder="120/80"></div>
+            <div class="fl"><label>Pulse (bpm)</label><input type="text" id="i-pu" placeholder="72"></div>
+            <div class="fl"><label>Temperature (°F)</label><input type="text" id="i-tp" placeholder="98.6"></div>
+            <div class="fl"><label>SpO₂ (%)</label><input type="text" id="i-o2" placeholder="98"></div>
+            <div class="fl"><label>Weight (kg)</label><input type="text" id="i-wt" placeholder="70"></div>
+            <div class="fl"><label>Height (cm)</label><input type="text" id="i-ht" placeholder="170"></div>
+          </div>
+        </div>
+        <div class="fs"><div class="fst">📋 Medical History</div>
+          <div class="fgrid">
+            <div class="fl"><label>Known Allergies</label><input type="text" id="i-al" placeholder="e.g. Penicillin"></div>
+            <div class="fl"><label>Current Medications</label><input type="text" id="i-md" placeholder="e.g. Metformin 500mg"></div>
+            <div class="fl"><label>Past Illnesses / Surgeries</label><input type="text" id="i-hx" placeholder="e.g. Diabetes, 2018 surgery"></div>
+            <div class="fl"><label>Symptoms Since</label><input type="text" id="i-dur" placeholder="e.g. 3 days"></div>
+          </div>
+          <div class="fl" style="margin-top:14px;"><label>Nurse Notes for Doctor</label><textarea id="i-nt" placeholder="Any observations the doctor should know..."></textarea></div>
+        </div>
+        <div class="fs"><div class="fst">💰 Billing & Fee</div>
+          <div class="fgrid">
+            <div class="fl"><label>Checkup Fee (PKR)</label><input type="number" id="i-fee" placeholder="0" min="0" value=""></div>
+            <div class="fl"><label>Fee Collection</label>
+              <select id="i-paid" onchange="toggleIntakeFee()">
+                <option value="Pending">Not Collected Yet</option>
+                <option value="Counter-Paid">Collected at Counter Now</option>
+                <option value="Doctor-Pending">Doctor Will Collect</option>
+              </select>
+            </div>
+            <div class="fl" id="i-counter-wrap" style="display:none;">
+              <label>Receipt / Note</label>
+              <input type="text" id="i-cnote" placeholder="e.g. Cash ₨500, receipt #12">
+            </div>
+            <div class="fl"><label>Indoor Admission?</label>
+              <select id="i-indoor" onchange="toggleIntakeIndoor()">
+                <option value="No">No — OPD only</option>
+                <option value="Yes">Yes — Admitted</option>
+              </select>
+            </div>
+            <div class="fl" id="i-indoor-wrap" style="display:none;">
+              <label>Treatment / Procedure</label>
+              <input type="text" id="i-tx" placeholder="e.g. Appendectomy, IV drip">
+            </div>
+            <div class="fl" id="i-indoor-charge-wrap" style="display:none;">
+              <label>Treatment Charges (PKR)</label>
+              <input type="number" id="i-txc" placeholder="0" min="0">
+            </div>
+          </div>
+        </div>
+        <div class="brow" style="margin-bottom:24px;">
+          <button class="btn bt" onclick="submitIntake()">✓ Register & Print Token</button>
+          <button class="btn bo" onclick="clearIntake()">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUEUE -->
+    <div class="page" id="page-queue">
+      <div class="pgh"><h2>Waiting Queue</h2><p id="qsub">Patients waiting to be seen</p></div>
+      <div class="sg" id="qstats"></div>
+      <div id="qwrap"></div>
+    </div>
+
+    <!-- ADD PATIENT (billing) -->
+    <div class="page" id="page-add-patient">
+      <div class="pgh"><h2>Backdate / Walk-in Record</h2><p>For patients already seen — enter past consultation with billing directly. No queue token.</p></div>
+      <div class="card" style="padding:26px 26px 6px;">
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:11px 15px;margin-bottom:14px;font-size:13px;color:#78350f;"><strong>🧾 When to use this:</strong> Use this ONLY for: backdating past records, walk-ins already seen, or entering records from paper. For new arriving patients use "Register Patient" instead.</div><div id="faa"></div>
+        <div class="fs"><div class="fst">Patient & Billing</div>
+          <div class="fgrid">
+            <div class="fl"><label>Patient Name *</label><input type="text" id="f-nm" placeholder="Full name"></div>
+            <div class="fl"><label>Complaint *</label><input type="text" id="f-cf" placeholder="Fever, Cough..."></div>
+            <div class="fl"><label>Doctor *</label><select id="f-doc"><option value="">— Select —</option></select></div>
+            <div class="fl"><label>Checkup Fee (PKR) *</label><input type="number" id="f-fee" placeholder="0" min="0"></div>
+            <div class="fl"><label>Fee Collection</label>
+              <select id="f-paid" onchange="toggleCounterFee()">
+                <option value="Pending">Not Collected Yet</option>
+                <option value="Counter-Paid">Paid at Counter (now)</option>
+                <option value="Doctor-Pending">Doctor Will Collect</option>
+              </select>
+            </div>
+            <div class="fl" id="f-counter-note" style="display:none;">
+              <label>Counter Staff Note</label>
+              <input type="text" id="f-cnote" placeholder="e.g. Cash received, receipt #12">
+            </div>
+            <div class="fl"><label>BP</label><input type="text" id="f-bp" placeholder="120/80"></div>
+            <div class="fl"><label>Pulse</label><input type="text" id="f-pu" placeholder="72"></div>
+            <div class="fl"><label>Temperature</label><input type="text" id="f-tp" placeholder="98.6"></div>
+            <div class="fl"><label>Indoor Treatment?</label><select id="f-in" onchange="toggleTx()"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+            <div class="fl" id="ftw" style="display:none;"><label>Treatment Description</label><input type="text" id="f-td"></div>
+            <div class="fl" id="ftfw" style="display:none;"><label>Treatment Charges (PKR)</label><input type="number" id="f-tf" placeholder="0" min="0"></div>
+          </div>
+        </div>
+        <div class="fs"><div class="fl"><label>Notes</label><textarea id="f-nt"></textarea></div></div>
+        <div class="brow" style="margin-bottom:24px;">
+          <button class="btn bt" onclick="submitPatient()">✓ Save & Print Ticket</button>
+          <button class="btn bo" onclick="clearForm()">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALL PATIENTS -->
+    <div class="page" id="page-patients">
+      <div class="pgh"><h2>Patient Records</h2><p>All registered patients</p></div>
+      <div class="card">
+        <div class="ch"><h3>All Records</h3>
+          <div class="brow">
+            <button class="btn bo bsm" onclick="exportCSV()">⬇ Export CSV</button>
+            <button class="btn bt bsm" id="apb" onclick="showPage('add-patient')">+ Add Patient</button>
+          </div>
+        </div>
+        <div style="padding:12px 22px 0;">
+          <div class="fr">
+            <input type="text" id="pts" placeholder="🔍 Search..." oninput="renderPts()" style="flex:1;min-width:140px;">
+            <select id="pdoc" onchange="renderPts()"><option value="">All Doctors</option></select>
+            <select id="pst" onchange="renderPts()"><option value="">All Status</option><option>Paid</option><option>Pending</option></select>
+            <input type="date" id="pdt" onchange="renderPts()">
+          </div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>ID</th><th>Date</th><th>Patient</th><th>Doctor</th><th>Complaint</th><th>Fee</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="ptbl"></tbody>
+        </table></div>
+        <div id="ptempty" class="empty" style="display:none;"><div class="eico">🗂️</div><h4>No records found</h4></div>
+      </div>
+    </div>
+
+    <!-- MY PATIENTS (doctor) -->
+    <div class="page" id="page-my-patients">
+      <div class="pgh"><h2 id="dptitle">My Patients</h2><p>Your records and earnings summary</p></div>
+      <div class="sg" id="dpstats"></div>
+      <div class="card">
+        <div class="ch"><h3>My Records</h3></div>
+        <div class="tw"><table>
+          <thead><tr><th>ID</th><th>Date</th><th>Patient</th><th>Complaint</th><th>Vitals</th><th>Fee</th><th>Total</th><th>Hosp. Cut</th><th>My Earnings</th><th>Status</th><th></th></tr></thead>
+          <tbody id="dptbl"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- EARNINGS -->
+    <div class="page" id="page-earnings">
+      <div class="pgh"><h2>Earnings & Distribution</h2><p>Doctor cuts and operation fee management</p></div>
+      <div class="tabs"><div class="tab active" onclick="switchET('summary')">Summary</div><div class="tab" onclick="switchET('ops')">Operations</div></div>
+      <div id="esumm">
+        <div id="ecards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:22px;"></div>
+        <div class="card"><div class="ch"><h3>Doctor Breakdown</h3></div>
+          <div class="tw"><table>
+            <thead><tr><th>Doctor</th><th>Patients</th><th>Checkup Rev.</th><th>Hospital Cut</th><th>Doctor Cut</th><th>Op. Revenue</th><th>Op. Doc Cut</th></tr></thead>
+            <tbody id="etbl"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="eops" style="display:none;">
+        <div class="card"><div class="ch"><h3>Operation Cases</h3><button class="btn bt bsm" onclick="openDist()">+ Set Distribution</button></div>
+          <div class="tw"><table>
+            <thead><tr><th>Patient</th><th>Doctor</th><th>Date</th><th>Treatment</th><th>Amount</th><th>Distribution</th><th>Actions</th></tr></thead>
+            <tbody id="opstbl"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUDGET & CONSUMABLES -->
+    <div class="page" id="page-budget">
+      <div class="pgh"><h2>Monthly Budget & Consumables</h2><p>Track expenses, consumables inventory and monthly budget</p></div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchBT('overview')">Overview</div>
+        <div class="tab" onclick="switchBT('expenses')">Expenses</div>
+        <div class="tab" onclick="switchBT('consumables')">Consumables</div>
+      </div>
+      <!-- OVERVIEW -->
+      <div id="b-overview">
+        <div class="sg" id="bstats"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div class="card">
+            <div class="ch"><h3>Budget vs Spending</h3><button class="btn bo bsm" onclick="openBudgetSet()">⚙ Set Budget</button></div>
+            <div style="padding:20px 22px;" id="bvs"></div>
+          </div>
+          <div class="card">
+            <div class="ch"><h3>Spending by Category</h3></div>
+            <div style="padding:20px 22px;" id="bcat"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch"><h3>Recent Expenses</h3></div>
+          <div class="tw"><table>
+            <thead><tr><th>Date</th><th>Category</th><th>Item</th><th>Amount</th><th>Added By</th></tr></thead>
+            <tbody id="rexptbl"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <!-- EXPENSES -->
+      <div id="b-expenses" style="display:none;">
+        <div class="card" style="padding:22px 22px 6px;">
+          <div id="expa"></div>
+          <div class="fs"><div class="fst">Add Expense</div>
+            <div class="fgrid">
+              <div class="fl"><label>Category *</label><select id="ex-cat">
+                <option value="">— Select —</option>
+                <option>Salaries</option><option>Rent / Utilities</option><option>Equipment</option>
+                <option>Medicines / Consumables</option><option>Maintenance</option><option>Marketing</option><option>Other</option>
+              </select></div>
+              <div class="fl"><label>Item / Description *</label><input type="text" id="ex-item" placeholder="e.g. Nurse salary, Electricity bill"></div>
+              <div class="fl"><label>Amount (PKR) *</label><input type="number" id="ex-amt" placeholder="0" min="0"></div>
+              <div class="fl"><label>Date *</label><input type="date" id="ex-date"></div>
+              <div class="fl"><label>Vendor / Supplier</label><input type="text" id="ex-vendor" placeholder="Optional"></div>
+              <div class="fl"><label>Month</label><select id="ex-month"></select></div>
+            </div>
+            <div class="fl" style="margin-top:14px;"><label>Notes</label><textarea id="ex-nt" style="min-height:60px;" placeholder="Optional notes..."></textarea></div>
+          </div>
+          <div class="brow" style="margin-bottom:24px;"><button class="btn bt" onclick="addExpense()">+ Add Expense</button></div>
+        </div>
+        <div class="card">
+          <div class="ch"><h3>All Expenses</h3>
+            <div class="fr" style="margin:0;"><select id="efm" onchange="renderExpenses()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif;"></select></div>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th>Date</th><th>Category</th><th>Item</th><th>Amount</th><th>Vendor</th><th>Added By</th><th>Actions</th></tr></thead>
+            <tbody id="exptbl"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <!-- CONSUMABLES -->
+      <div id="b-consumables" style="display:none;">
+        <div class="card" style="padding:22px 22px 6px;">
+          <div id="consa"></div>
+          <div class="fs"><div class="fst">Add / Update Consumable</div>
+            <div class="fgrid">
+              <div class="fl"><label>Item Name *</label><input type="text" id="c-nm" placeholder="e.g. Surgical Gloves (Box)"></div>
+              <div class="fl"><label>Category</label><select id="c-cat">
+                <option>Surgical Supplies</option><option>Medicines</option><option>PPE</option><option>Lab Supplies</option><option>Office Supplies</option><option>Cleaning Supplies</option><option>Other</option>
+              </select></div>
+              <div class="fl"><label>Quantity *</label><input type="number" id="c-qty" placeholder="0" min="0"></div>
+              <div class="fl"><label>Unit</label><input type="text" id="c-unit" placeholder="e.g. Box, Piece, Bottle"></div>
+              <div class="fl"><label>Unit Cost (PKR)</label><input type="number" id="c-cost" placeholder="0" min="0"></div>
+              <div class="fl"><label>Min. Stock Alert</label><input type="number" id="c-min" placeholder="e.g. 5" min="0"></div>
+              <div class="fl"><label>Supplier</label><input type="text" id="c-sup" placeholder="Optional"></div>
+              <div class="fl"><label>Expiry Date</label><input type="date" id="c-exp"></div>
+            </div>
+          </div>
+          <div class="brow" style="margin-bottom:24px;"><button class="btn bt" onclick="addConsumable()">+ Add Item</button></div>
+        </div>
+        <div class="card">
+          <div class="ch"><h3>Consumables Inventory</h3><span style="font-size:12px;color:var(--muted);" id="lowstock-count"></span></div>
+          <div class="tw"><table>
+            <thead><tr><th>Item</th><th>Category</th><th>Stock</th><th>Unit Cost</th><th>Total Value</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="constbl"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAFF MANAGEMENT -->
+    <div class="page" id="page-users">
+      <div class="pgh"><h2>Staff Management</h2><p>Add, edit and manage all hospital staff accounts</p></div>
+      <div class="card">
+        <div class="ch"><h3>All Staff</h3><button class="btn bt bsm" onclick="openUserMo()">+ Add Staff Member</button></div>
+        <div class="tw"><table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Doctor Name / Dept</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="utbl"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- DATA MANAGEMENT (admin only) -->
+    <div class="page" id="page-data-mgmt">
+      <div class="pgh"><h2>🗃 Data Management</h2><p>Delete old records to keep the system clean — admin only</p></div>
+      <div class="card" style="padding:26px;">
+        <div style="background:#fed7d7;border:1px solid #feb2b2;border-radius:9px;padding:13px 16px;margin-bottom:22px;font-size:13px;color:#9b2c2c;">
+          <strong>⚠ Warning:</strong> Deleted records cannot be recovered. Always export a CSV backup first.
+        </div>
+        <div class="fs"><div class="fst">🗑 Delete Records</div>
+          <div class="fgrid" style="margin-bottom:18px;">
+            <div class="fl">
+              <label>What to delete</label>
+              <select id="del-target">
+                <option value="tokens">Tokens / Queue records</option>
+                <option value="patients">Patient billing records</option>
+                <option value="expenses">Expense records</option>
+                <option value="both">Tokens + Patients (all patient data)</option>
+              </select>
+            </div>
+            <div class="fl">
+              <label>Date range</label>
+              <select id="del-range" onchange="toggleDelCustom()">
+                <option value="prev-month">Previous month only</option>
+                <option value="older-3">Older than 3 months</option>
+                <option value="older-6">Older than 6 months</option>
+                <option value="older-12">Older than 12 months</option>
+                <option value="custom">Custom — before a specific date</option>
+                <option value="all">⚠ ALL records (full wipe)</option>
+              </select>
+            </div>
+            <div class="fl" id="del-custom-wrap" style="display:none;">
+              <label>Delete records before this date</label>
+              <input type="date" id="del-custom-date">
+            </div>
+          </div>
+          <div id="del-preview" style="background:#f0faf9;border-radius:8px;padding:14px 18px;margin-bottom:18px;font-size:13px;min-height:44px;"></div>
+          <div class="brow">
+            <button class="btn bo" onclick="previewDeletion()">🔍 Preview — show what will be deleted</button>
+            <button class="btn bred" onclick="confirmAndDelete()">🗑 Delete Selected Records</button>
+          </div>
+          <div id="del-result" style="margin-top:14px;"></div>
+        </div>
+        <div class="fs" style="margin-top:10px;"><div class="fst">📥 Export Before Deleting</div>
+          <div class="brow">
+            <button class="btn bo" onclick="exportCSV()">⬇ Export Patients CSV</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TICKET -->
+    <div class="page" id="page-ticket">
+      <div class="pgh"><h2>Patient Token / Ticket</h2><p>Printable consultation slip</p></div>
+      <div class="brow" style="margin-bottom:18px;">
+        <button class="btn bt" onclick="printToken()">🖨 Print Token</button>
+        <button class="btn bo" onclick="showPage('queue')">← Back to Queue</button>
+      </div>
+      <div id="tkcon"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<!-- EDIT PATIENT -->
+<div class="mo" id="mo-edit">
+  <div class="md">
+    <div class="mh"><h3>Edit Patient Record</h3><button class="mclose" onclick="closeMo('mo-edit')">×</button></div>
+    <div class="fgrid">
+      <div class="fl"><label>Patient Name</label><input id="e-nm" type="text"></div>
+      <div class="fl"><label>Complaint</label><input id="e-cf" type="text"></div>
+      <div class="fl"><label>Doctor</label><select id="e-doc"></select></div>
+      <div class="fl"><label>Checkup Fee</label><input id="e-fee" type="number"></div>
+      <div class="fl"><label>Payment</label><select id="e-paid"><option>Paid</option><option>Pending</option></select></div>
+      <div class="fl"><label>BP</label><input id="e-bp" type="text"></div>
+      <div class="fl"><label>Pulse</label><input id="e-pu" type="text"></div>
+      <div class="fl"><label>Temperature</label><input id="e-tp" type="text"></div>
+      <div class="fl"><label>SpO₂</label><input id="e-o2" type="text"></div>
+      <div class="fl"><label>Indoor Treatment</label><select id="e-in" onchange="toggleEditTx()"><option>No</option><option>Yes</option></select></div>
+      <div class="fl" id="etw"><label>Treatment Desc.</label><input id="e-td" type="text"></div>
+      <div class="fl" id="etfw"><label>Treatment Charges</label><input id="e-tf" type="number"></div>
+    </div>
+    <div class="fl" style="margin-top:14px;"><label>Notes</label><textarea id="e-nt"></textarea></div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="saveEdit()">Save Changes</button>
+      <button class="btn bo" onclick="closeMo('mo-edit')">Cancel</button>
+    </div>
+    <input type="hidden" id="e-id">
+  </div>
+</div>
+
+<!-- PRESCRIPTION -->
+<div class="mo" id="mo-rx">
+  <div class="md" style="max-width:680px;">
+    <div class="mh"><h3>Write Prescription</h3><button class="mclose" onclick="closeMo('mo-rx')">×</button></div>
+    <div id="rxinfo" style="background:#f0faf9;border-radius:9px;padding:13px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="fl"><label>Diagnosis</label>
+      <input id="rx-diag" type="text" placeholder="e.g. Viral Fever, Hypertension"
+             oninput="rxDiagAC(this)" autocomplete="off">
+      <div id="rx-diag-ac" class="rx-ac-list" style="display:none;"></div>
+    </div>
+    <div class="fl" style="margin-top:14px;">
+      <label style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Prescription / Medicines</span>
+        <span style="font-size:11px;color:var(--muted);font-weight:400;">Type a drug name → suggestions appear · Press Tab to accept</span>
+      </label>
+      <div style="position:relative;">
+        <textarea id="rx-txt" style="min-height:140px;"
+                  placeholder="Tab. Paracetamol 500mg — 1 tab TDS x 5 days&#10;Tab. Amoxicillin 500mg — 1 tab BD x 7 days&#10;Syp. Cetirizine 5mg/5ml — 2 tsp OD x 5 days"
+                  oninput="rxMedAC(this)" onkeydown="rxMedKey(event)"></textarea>
+        <div id="rx-ac-list" class="rx-ac-list" style="display:none;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8;">
+        Common dosage abbreviations: <strong>OD</strong>=once daily &nbsp;
+        <strong>BD</strong>=twice daily &nbsp; <strong>TDS</strong>=three times daily &nbsp;
+        <strong>QID</strong>=four times daily &nbsp; <strong>SOS</strong>=when needed &nbsp;
+        <strong>AC</strong>=before meals &nbsp; <strong>PC</strong>=after meals
+      </div>
+    </div>
+    <div class="fl" style="margin-top:12px;"><label>Advice / Instructions</label>
+      <textarea id="rx-adv" placeholder="Rest, increase fluid intake, avoid cold food..."></textarea>
+    </div>
+    <div class="fl" style="margin-top:12px;"><label>Follow-up Date</label>
+      <input id="rx-fu" type="date">
+    </div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="saveRx()">✓ Save & Print</button>
+      <button class="btn bo" onclick="closeMo('mo-rx')">Cancel</button>
+    </div>
+    <input type="hidden" id="rx-pid"> <input type="hidden" id="rx-type">
+  </div>
+</div>
+
+<!-- DISTRIBUTION -->
+<div class="mo" id="mo-dist">
+  <div class="md" style="max-width:480px;">
+    <div class="mh"><h3>Set Op. Fee Distribution</h3><button class="mclose" onclick="closeMo('mo-dist')">×</button></div>
+    <div id="dinfo" style="background:#f0faf9;border-radius:9px;padding:13px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="fgrid">
+      <div class="fl"><label>Type</label><select id="d-type" onchange="toggleDT()"><option value="all">All to Doctor</option><option value="percent">Percentage Split</option><option value="amount">Fixed Amount</option></select></div>
+      <div class="fl" id="dpw" style="display:none;"><label>Doctor's %</label><input id="d-pct" type="number" min="0" max="100" placeholder="70"></div>
+      <div class="fl" id="daw" style="display:none;"><label>Fixed Amount (PKR)</label><input id="d-amt" type="number" min="0"></div>
+    </div>
+    <div class="fl" style="margin-top:12px;"><label>Notes</label><textarea id="d-nt"></textarea></div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="saveDist()">Save</button>
+      <button class="btn bo" onclick="closeMo('mo-dist')">Cancel</button>
+    </div>
+    <input type="hidden" id="d-pid">
+  </div>
+</div>
+
+<!-- ADD / EDIT STAFF -->
+<div class="mo" id="mo-user">
+  <div class="md" style="max-width:520px;">
+    <div class="mh"><h3 id="umtitle">Add Staff Member</h3><button class="mclose" onclick="closeMo('mo-user')">×</button></div>
+    <div id="uma"></div>
+    <div class="fgrid">
+      <div class="fl"><label>Full Name *</label><input id="u-nm" type="text" placeholder="e.g. Dr. Ayesha Khan"></div>
+      <div class="fl"><label>Email Address *</label><input id="u-em" type="email" placeholder="staff@hospital.com"></div>
+      <div class="fl"><label>Password *</label><input id="u-pw" type="password" placeholder="Min 6 characters" autocomplete="new-password"></div>
+      <div class="fl"><label>Role *</label>
+        <select id="u-role" onchange="toggleUR()">
+          <option value="staff">Nurse / Counter Staff</option>
+          <option value="doctor">Doctor</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="fl" id="udnw" style="display:none;"><label>Doctor's Display Name *</label><input id="u-dn" type="text" placeholder="e.g. Dr. Ayesha Khan"></div>
+      <div class="fl"><label>Phone (optional)</label><input id="u-ph" type="text" placeholder="03xx-xxxxxxx"></div>
+      <div class="fl" id="u-cut-wrap" style="display:none;">
+        <label>Fee Distribution (Doctor's Share %)</label>
+        <select id="u-cut" onchange="toggleCutField()">
+          <option value="70">Standard — 70% Doctor / 30% Hospital</option>
+          <option value="custom">Custom percentage</option>
+          <option value="0">No cut — Doctor keeps 100%</option>
+          <option value="hospital">No cut — Hospital keeps 100%</option>
+        </select>
+      </div>
+      <div class="fl" id="u-cut-custom-wrap" style="display:none;">
+        <label>Doctor's % (e.g. 60 means doctor gets 60%, hospital gets 40%)</label>
+        <input type="number" id="u-cut-pct" min="0" max="100" placeholder="e.g. 60">
+      </div>
+    </div>
+    <div style="margin-top:14px;padding:12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e;">
+      ⚠ The staff member will log in using their <strong>email and password</strong> above. Share these credentials with them securely.
+    </div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="saveUser()" id="usavebtn">Create Account</button>
+      <button class="btn bo" onclick="closeMo('mo-user')">Cancel</button>
+    </div>
+    <input type="hidden" id="u-id">
+  </div>
+</div>
+
+<!-- BUDGET SET MODAL -->
+<div class="mo" id="mo-budget">
+  <div class="md" style="max-width:440px;">
+    <div class="mh"><h3>Set Monthly Budget</h3><button class="mclose" onclick="closeMo('mo-budget')">×</button></div>
+    <div class="fgrid">
+      <div class="fl"><label>Month</label><select id="bm-month"></select></div>
+      <div class="fl"><label>Total Budget (PKR)</label><input id="bm-amt" type="number" placeholder="500000" min="0"></div>
+    </div>
+    <div style="margin-top:16px;font-size:13px;color:var(--muted);">Set category limits (optional):</div>
+    <div class="fgrid" style="margin-top:10px;">
+      <div class="fl"><label>Salaries</label><input id="bm-sal" type="number" placeholder="0"></div>
+      <div class="fl"><label>Medicines/Consumables</label><input id="bm-med" type="number" placeholder="0"></div>
+      <div class="fl"><label>Rent/Utilities</label><input id="bm-ren" type="number" placeholder="0"></div>
+      <div class="fl"><label>Equipment</label><input id="bm-eqp" type="number" placeholder="0"></div>
+    </div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="saveBudget()">Save Budget</button>
+      <button class="btn bo" onclick="closeMo('mo-budget')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONSUMABLE USE MODAL -->
+<div class="mo" id="mo-use">
+  <div class="md" style="max-width:400px;">
+    <div class="mh"><h3>Use / Adjust Stock</h3><button class="mclose" onclick="closeMo('mo-use')">×</button></div>
+    <div id="useinfo" style="font-size:13px;margin-bottom:14px;color:var(--muted);"></div>
+    <div class="fgrid">
+      <div class="fl"><label>Action</label><select id="use-act"><option value="use">Use (decrease stock)</option><option value="restock">Restock (increase stock)</option></select></div>
+      <div class="fl"><label>Quantity</label><input id="use-qty" type="number" min="1" placeholder="1"></div>
+    </div>
+    <div class="fl" style="margin-top:12px;"><label>Note</label><input id="use-nt" type="text" placeholder="Optional reason"></div>
+    <div class="brow" style="margin-top:18px;">
+      <button class="btn bt" onclick="doUseConsumable()">Confirm</button>
+      <button class="btn bo" onclick="closeMo('mo-use')">Cancel</button>
+    </div>
+    <input type="hidden" id="use-id">
+  </div>
+</div>
+
+<!-- FEE COLLECTION MODAL -->
+<div class="mo" id="mo-fee">
+  <div class="md" style="max-width:500px;">
+    <div class="mh"><h3 id="fee-mo-title">💰 Fee Collection</h3><button class="mclose" onclick="closeMo('mo-fee')">×</button></div>
+    <div style="padding:22px;">
+      <input type="hidden" id="fee-mo-id">
+      <input type="hidden" id="fee-mo-col">
+      <div id="fee-mo-patient" style="background:var(--cream);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:14px;border:1px solid var(--border);"></div>
+
+      <!-- DOCTOR: mark collected -->
+      <div id="fee-doc-section">
+        <div class="fl" style="margin-bottom:14px;">
+          <label>Amount Doctor Collected (PKR)</label>
+          <input type="number" id="fee-doc-amount" placeholder="Enter amount">
+        </div>
+        <div class="fl" style="margin-bottom:18px;">
+          <label>Note for Counter Staff</label>
+          <input type="text" id="fee-doc-note" placeholder="e.g. Cash taken, will hand to counter">
+        </div>
+        <button class="btn bt" style="width:100%;" onclick="saveDoctorFee()">✓ Mark Fee as Collected by Me</button>
+      </div>
+
+      <!-- STAFF: confirm receipt from doctor -->
+      <div id="fee-staff-section" style="display:none;">
+        <div style="background:#fef3c7;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.7;">
+          <strong>⚠ Doctor collected this fee.</strong><br>
+          <span id="fee-staff-info"></span>
+        </div>
+        <div class="fl" style="margin-bottom:14px;">
+          <label>Amount Received from Doctor (PKR)</label>
+          <input type="number" id="fee-staff-amount" placeholder="Confirm amount received">
+        </div>
+        <div class="fl" style="margin-bottom:18px;">
+          <label>Staff Note</label>
+          <input type="text" id="fee-staff-note" placeholder="e.g. Received cash from Dr. Ahmed">
+        </div>
+        <button class="btn bt" style="width:100%;background:var(--green);" onclick="confirmStaffReceipt()">✅ Confirm & Mark as Paid</button>
+      </div>
+
+      <!-- COUNTER: collect now -->
+      <div id="fee-counter-section" style="display:none;">
+        <div class="fl" style="margin-bottom:14px;">
+          <label>Amount Received (PKR)</label>
+          <input type="number" id="fee-counter-amount" placeholder="Enter amount received">
+        </div>
+        <div class="fl" style="margin-bottom:18px;">
+          <label>Note / Receipt #</label>
+          <input type="text" id="fee-counter-note" placeholder="e.g. Cash, receipt #12">
+        </div>
+        <button class="btn bt" style="width:100%;background:var(--green);" onclick="saveCounterFee()">✅ Mark as Paid at Counter</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  MODULE BOOTSTRAP                                            ║
+  ║  Imports all JS modules and exposes functions to HTML        ║
+  ║  onclick handlers (which require global scope).              ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+<script type="module">
+// ── Import everything ─────────────────────────────────────
+import { initAuth, doLogin, doLogout } from './auth.js';
+import { showPage, buildNav, populateDropdowns, populateMonthDropdowns,
+          showToast, startOnlineMonitor,
+          renderDash, renderPts, renderDocPts, renderQueue,
+          renderEarnings, renderBudget, renderExpenses, renderConsumables,
+          renderUsers, switchET, switchBT } from './ui.js';
+import { viewToken, printToken } from './token.js';
+import {
+  openMo, closeMo,
+  submitIntake, clearIntake, toggleIntakeFee, toggleIntakeIndoor,
+  submitPatient, clearForm, toggleTx, toggleCounterFee,
+  markSeen,
+  openFeeModal, saveDoctorFee, confirmStaffReceipt, saveCounterFee,
+  openRxMo, saveRx,
+  editPt, saveEdit, delPt, toggleEditTx,
+  openDist, toggleDT, saveDist,
+  openBudgetSet, saveBudget,
+  addExpense, delExpense,
+  addConsumable, delCons, openUse, doUseConsumable,
+  openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive,
+  toggleUR, toggleCutField,
+  exportCSV
+} from './actions.js';
+import { rxMedAC, rxMedKey, rxPickMed, rxDiagAC, rxPickDiag } from './rx.js';
+import { toggleDelCustom, previewDeletion, confirmAndDelete } from './datamgmt.js';
+
+// ── Expose to global scope for HTML onclick handlers ──────
+Object.assign(window, {
+  // auth
+  doLogin, doLogout,
+  // navigation
+  showPage,
+  // intake
+  submitIntake, clearIntake, toggleIntakeFee, toggleIntakeIndoor,
+  // backdate / walk-in
+  submitPatient, clearForm, toggleTx, toggleCounterFee,
+  // queue
+  markSeen,
+  // fee
+  openFeeModal, saveDoctorFee, confirmStaffReceipt, saveCounterFee,
+  // token
+  viewToken, printToken,
+  // prescription + autocomplete
+  openRxMo, saveRx, rxMedAC, rxMedKey, rxPickMed, rxDiagAC, rxPickDiag,
+  // patients
+  editPt, saveEdit, delPt, toggleEditTx,
+  // earnings/distribution
+  switchET, openDist, toggleDT, saveDist,
+  // budget
+  switchBT, openBudgetSet, saveBudget,
+  // expenses
+  addExpense, delExpense,
+  // consumables
+  addConsumable, delCons, openUse, doUseConsumable,
+  // staff
+  openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive, toggleUR, toggleCutField,
+  // data management
+  toggleDelCustom, previewDeletion, confirmAndDelete,
+  // misc
+  exportCSV,
+  // modals
+  openMo, closeMo,
+});
+
+// ── Close modals on backdrop click ────────────────────────
+document.querySelectorAll('.mo').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) closeMo(m.id); });
+});
+
+// ── Start the app ─────────────────────────────────────────
+initAuth();
+</script>
+
+</body>
+</html>
