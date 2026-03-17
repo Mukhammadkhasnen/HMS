@@ -132,6 +132,10 @@ export async function loadUserProfile(user, retryCount = 0) {
   populateDropdowns();
   populateMonthDropdowns();
   startOnlineMonitor();
+  // Tell rx.js which doctor is logged in (for per-doctor favourites)
+  document.dispatchEvent(new CustomEvent('hms-user-ready', {
+    detail: { uid: CU.uid, name: CU.name || CU.email, role: CU.role }
+  }));
   await loadAllData();
   showPage('dashboard');
 }
