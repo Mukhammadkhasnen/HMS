@@ -121,29 +121,37 @@ export async function confirmAndDelete() {
   const total = recs.tokens.length + recs.patients.length + recs.expenses.length;
 
   if (total === 0) {
-    if (result) result.innerHTML = '<div class="alert as">No matching records found.</div>';
+    if (result) result.innerHTML = '<div class="alert as">No matching records found — nothing to delete.</div>';
     return;
   }
 
-  // Double confirmation for large or all-records deletion
-  const confirmMsg = range === 'all'
-    ? `⚠ PERMANENT DELETE\n\nThis will delete ALL ${total} records permanently.\nThis cannot be undone!\n\nType DELETE to confirm:`
-    : `Delete ${total} record(s) before ${cutoff.toLocaleDateString('en-PK')}?\n\nThis cannot be undone. Type DELETE to confirm:`;
+  // Show custom modal (window.prompt is blocked on GitHub Pages / mobile)
+  const cutoffStr = range === 'all'
+    ? '<strong>ALL records</strong>'
+    : `records before <strong>${cutoff.toLocaleDateString('en-PK')}</strong>`;
 
-  const typed = window.prompt(confirmMsg);
-  if (typed !== 'DELETE') {
-    if (result) result.innerHTML = '<div class="alert ae">Deletion cancelled — you must type DELETE exactly to confirm.</div>';
+  try {
+    await window.showConfirmModal(
+      '⚠ Confirm Permanent Delete',
+      `This will permanently delete <strong>${total} record(s)</strong> — ${cutoffStr}.<br><br>
+       Tokens: <strong>${recs.tokens.length}</strong> &nbsp;|&nbsp;
+       Patients: <strong>${recs.patients.length}</strong> &nbsp;|&nbsp;
+       Expenses: <strong>${recs.expenses.length}</strong><br><br>
+       This <strong>cannot be undone.</strong> Export a CSV backup first.`
+    );
+  } catch {
+    // User cancelled
+    if (result) result.innerHTML = '<div class="alert ae">Deletion cancelled.</div>';
     return;
   }
 
-  if (result) result.innerHTML = '<div class="alert ai">⏳ Deleting records...</div>';
+  if (result) result.innerHTML = '<div class="alert ai">⏳ Deleting... 0/' + total + ' done</div>';
 
   let deleted = 0;
   let failed  = 0;
 
-  // Delete in batches, show progress
   const allToDelete = [
-    ...recs.tokens.map(r => ({ col: 'tokens', id: r.id })),
+    ...recs.tokens.map(r   => ({ col: 'tokens',   id: r.id })),
     ...recs.patients.map(r => ({ col: 'patients', id: r.id })),
     ...recs.expenses.map(r => ({ col: 'expenses', id: r.id })),
   ];
@@ -153,7 +161,6 @@ export async function confirmAndDelete() {
     try {
       await restDelete(col, id);
       deleted++;
-      // Update progress every 5 records
       if (i % 5 === 0 && result) {
         result.innerHTML = `<div class="alert ai">⏳ Deleting... ${deleted}/${total} done</div>`;
       }
@@ -163,14 +170,13 @@ export async function confirmAndDelete() {
     }
   }
 
-  // Reset preview
   const preview = document.getElementById('del-preview');
   if (preview) preview.innerHTML = '';
 
-  const msg = failed > 0
-    ? `<div class="alert ae">⚠ Deleted ${deleted} records. ${failed} failed — try again.</div>`
+  if (result) result.innerHTML = failed > 0
+    ? `<div class="alert ae">⚠ Deleted ${deleted}. ${failed} failed — check Firestore rules and try again.</div>`
     : `<div class="alert as">✅ Successfully deleted ${deleted} record(s).</div>`;
 
-  if (result) result.innerHTML = msg;
   showToast(`🗑 Deleted ${deleted} records`);
 }
+

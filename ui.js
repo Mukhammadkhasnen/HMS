@@ -331,7 +331,12 @@ export function renderDocPts() {
 // ═══════════════════════════════════════════════════════════
 // EARNINGS & DISTRIBUTION
 // ═══════════════════════════════════════════════════════════
-export function renderEarnings() { tabs.etab === 'summary' ? renderES() : renderEO(); }
+export function renderEarnings() {
+  // Doctors only see the Summary tab — hide Operations tab
+  const opsTab = document.getElementById('ops-tab');
+  if (opsTab) opsTab.style.display = CU.role === 'admin' ? '' : 'none';
+  tabs.etab === 'summary' ? renderES() : renderEO();
+}
 
 export function switchET(t) {
   setEtab(t);

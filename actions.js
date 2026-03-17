@@ -360,9 +360,23 @@ export async function saveEdit() {
   showToast('✓ Updated!'); closeMo('mo-edit');
 }
 export async function delPt(id) {
-  if (!confirm('Delete this patient record?')) return;
-  await safeWrite(() => restDelete('patients', id));
-  showToast('🗑 Deleted');
+  // Record may be in 'patients' (full billing) or 'tokens' (registered via intake)
+  const inPatients = CACHE.patients.find(x => x.id === id);
+  const col = inPatients ? 'patients' : 'tokens';
+  const rec = inPatients || CACHE.tokens.find(x => x.id === id);
+  if (!rec) { showToast('Record not found', true); return; }
+
+  try {
+    await window.showConfirmModal(
+      'Delete Patient Record',
+      `Delete record for <strong>${rec.patientName}</strong>?<br>
+       <span style="color:var(--color-text-secondary);font-size:13px;">Token: ${rec.tokenId || rec.id.slice(-5)} · ${rec.checkFor || '—'}</span><br><br>
+       This cannot be undone.`
+    );
+  } catch { return; } // cancelled
+
+  await safeWrite(() => restDelete(col, id));
+  showToast('🗑 Record deleted');
 }
 
 // ─────────────────────────────────────────────────────────
@@ -460,9 +474,16 @@ export async function addExpense() {
 }
 
 export async function delExpense(id) {
-  if (!confirm('Delete this expense?')) return;
+  const rec = CACHE.expenses.find(x => x.id === id);
+  try {
+    await window.showConfirmModal(
+      'Delete Expense',
+      `Delete expense: <strong>${rec ? rec.item : 'this record'}</strong>?<br>
+       ${rec ? `<span style="color:var(--color-text-secondary);font-size:13px;">₨${(rec.amount||0).toLocaleString()} · ${rec.category}</span>` : ''}`
+    );
+  } catch { return; }
   await safeWrite(() => restDelete('expenses', id));
-  showToast('🗑 Deleted');
+  showToast('🗑 Expense deleted');
 }
 
 export async function addConsumable() {
@@ -485,9 +506,16 @@ export async function addConsumable() {
 }
 
 export async function delCons(id) {
-  if (!confirm('Delete this item?')) return;
+  const rec = CACHE.consumables.find(x => x.id === id);
+  try {
+    await window.showConfirmModal(
+      'Delete Consumable',
+      `Delete <strong>${rec ? rec.name : 'this item'}</strong> from inventory?<br>
+       ${rec ? `<span style="color:var(--color-text-secondary);font-size:13px;">Stock: ${rec.quantity||0} ${rec.unit||'pcs'}</span>` : ''}`
+    );
+  } catch { return; }
   await safeWrite(() => restDelete('consumables', id));
-  showToast('🗑 Deleted');
+  showToast('🗑 Item deleted');
 }
 
 export function openUse(id, name, qty) {
