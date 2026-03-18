@@ -645,8 +645,21 @@ export function editUserMo(id) {
     cutEl.value = u.hospitalKeepsAll ? 'hospital' : u.noSplit ? '0' : u.doctorCutPct && u.doctorCutPct !== 70 ? 'custom' : '70';
     if (cutEl.value === 'custom') document.getElementById('u-cut-pct').value = u.doctorCutPct;
     toggleCutField();
+    // Restore fee schedule
+    const fees = u.feeSchedule || {};
+    _setFeeField('u-fee-checkup',    fees.checkup    || '');
+    _setFeeField('u-fee-ultrasound', fees.ultrasound || '');
+    _setFeeField('u-fee-minor',      fees.minor      || '');
+    _setFeeField('u-fee-major',      fees.major      || '');
+    _setFeeField('u-fee-followup',   fees.followup   || '');
+    _setFeeField('u-fee-other-label',fees.otherLabel || '');
+    _setFeeField('u-fee-other-amt',  fees.otherAmt   || '');
   }
   openMo('mo-user');
+}
+
+function _setFeeField(id, val) {
+  const el = document.getElementById(id); if (el) el.value = val;
 }
 
 export function toggleUR() {
@@ -654,6 +667,7 @@ export function toggleUR() {
   const isDoc = v === 'doctor';
   document.getElementById('udnw')?.style      && (document.getElementById('udnw').style.display      = isDoc ? 'block' : 'none');
   document.getElementById('u-cut-wrap')?.style && (document.getElementById('u-cut-wrap').style.display = isDoc ? 'block' : 'none');
+  document.getElementById('u-fees-wrap')?.style && (document.getElementById('u-fees-wrap').style.display = isDoc ? 'block' : 'none');
   toggleCutField();
 }
 export function toggleCutField() {
@@ -666,10 +680,26 @@ function _readCutSettings() {
   const cv  = document.getElementById('u-cut');
   const cw  = document.getElementById('u-cut-wrap');
   if (!cv || !cw || cw.style.display === 'none') return { noSplit: false, hospitalKeepsAll: false, doctorCutPct: 70 };
-  if (cv.value === '0')       return { noSplit: true,  hospitalKeepsAll: false, doctorCutPct: 0 };
+  if (cv.value === '0')        return { noSplit: true,  hospitalKeepsAll: false, doctorCutPct: 0 };
   if (cv.value === 'hospital') return { noSplit: true,  hospitalKeepsAll: true,  doctorCutPct: 0 };
-  if (cv.value === 'custom')  return { noSplit: false, hospitalKeepsAll: false, doctorCutPct: parseFloat(document.getElementById('u-cut-pct').value) || 70 };
+  if (cv.value === 'custom')   return { noSplit: false, hospitalKeepsAll: false, doctorCutPct: parseFloat(document.getElementById('u-cut-pct').value) || 70 };
   return { noSplit: false, hospitalKeepsAll: false, doctorCutPct: 70 };
+}
+
+function _readFeeSchedule() {
+  const fw = document.getElementById('u-fees-wrap');
+  if (!fw || fw.style.display === 'none') return {};
+  return {
+    feeSchedule: {
+      checkup:    parseFloat(document.getElementById('u-fee-checkup')?.value)    || 0,
+      ultrasound: parseFloat(document.getElementById('u-fee-ultrasound')?.value) || 0,
+      minor:      parseFloat(document.getElementById('u-fee-minor')?.value)      || 0,
+      major:      parseFloat(document.getElementById('u-fee-major')?.value)      || 0,
+      followup:   parseFloat(document.getElementById('u-fee-followup')?.value)   || 0,
+      otherLabel: document.getElementById('u-fee-other-label')?.value.trim()     || '',
+      otherAmt:   parseFloat(document.getElementById('u-fee-other-amt')?.value)  || 0,
+    }
+  };
 }
 
 export async function saveUser() {
@@ -690,6 +720,7 @@ export async function saveUser() {
       name: nm, email: em, role, doctorName: role === 'doctor' ? dn : null,
       phone: ph, active: true, uid: cred.user.uid,
       ..._readCutSettings(),
+      ..._readFeeSchedule(),
       createdAt: serverTimestamp(), createdBy: CU.uid
     });
     uma.innerHTML = `<div class="alert as">✓ Account created for ${nm}!</div>`;
@@ -709,7 +740,8 @@ export async function saveEditUser(id) {
   showToast('💾 Saving...');
   await safeWrite(() => restUpdate('staff', id, {
     name: nm, role, doctorName: role === 'doctor' ? dn : null, phone: ph,
-    ..._readCutSettings()
+    ..._readCutSettings(),
+    ..._readFeeSchedule()
   }));
   showToast('✓ Updated!'); closeMo('mo-user');
 }
@@ -759,4 +791,300 @@ export function exportCSV() {
   a.href    = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `patients_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
+}
+
+// ─────────────────────────────────────────────────────────
+// DOCTOR FEE AUTO-FILL ON INTAKE
+// ─────────────────────────────────────────────────────────
+const FEE_TYPE_MAP = {
+  consultation:'checkup', followup:'followup', ultrasound:'ultrasound',
+  minor:'minor', major:'major', other:'otherAmt'
+};
+
+export function onIntakeDoctorChange() {
+  const docName   = document.getElementById('i-doc')?.value;
+  const visitType = document.getElementById('i-visit-type')?.value || 'consultation';
+  const vtWrap    = document.getElementById('i-visit-type-wrap');
+  const procWrap  = document.getElementById('i-procedures-wrap');
+  const refWrap   = document.getElementById('i-referral-from-wrap');
+
+  if (!docName) {
+    if (vtWrap)  vtWrap.style.display  = 'none';
+    if (procWrap) procWrap.style.display = 'none';
+    if (refWrap) refWrap.style.display  = 'none';
+    return;
+  }
+  if (vtWrap)  vtWrap.style.display  = 'block';
+  if (refWrap) refWrap.style.display = visitType === 'referral' ? 'block' : 'none';
+
+  const doctor = CACHE.staff.find(s => s.role === 'doctor' && (s.doctorName === docName || s.name === docName));
+  const fees   = doctor?.feeSchedule || {};
+  const feeKey = FEE_TYPE_MAP[visitType] || 'checkup';
+  const autoFee = fees[feeKey] || 0;
+  const feeInput = document.getElementById('i-fee');
+  if (feeInput) feeInput.value = autoFee || '';
+
+  if (procWrap) {
+    const listEl = document.getElementById('i-procedures-list');
+    const procs  = [];
+    if (fees.ultrasound) procs.push({key:'ultrasound',label:`Ultrasound — ₨${fees.ultrasound.toLocaleString()}`,fee:fees.ultrasound});
+    if (fees.minor)      procs.push({key:'minor',label:`Minor Procedure — ₨${fees.minor.toLocaleString()}`,fee:fees.minor});
+    if (fees.major)      procs.push({key:'major',label:`Major Operation — ₨${fees.major.toLocaleString()}`,fee:fees.major});
+    if (fees.otherAmt && fees.otherLabel) procs.push({key:'other',label:`${fees.otherLabel} — ₨${fees.otherAmt.toLocaleString()}`,fee:fees.otherAmt});
+    if (procs.length && listEl) {
+      procWrap.style.display = 'block';
+      listEl.innerHTML = procs.map(p =>
+        `<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--cream);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px;">
+           <input type="checkbox" id="proc-${p.key}" value="${p.fee}" onchange="recalcIntakeFeeFromProcs('${docName}')">
+           ${p.label}
+         </label>`
+      ).join('');
+    } else {
+      procWrap.style.display = 'none';
+    }
+  }
+  if (typeof window._feeCalcIntakeFee === 'function') window._feeCalcIntakeFee();
+}
+
+export function recalcIntakeFeeFromProcs(docName) {
+  const doctor = CACHE.staff.find(s => s.role === 'doctor' && (s.doctorName === docName || s.name === docName));
+  const fees   = doctor?.feeSchedule || {};
+  const visitType = document.getElementById('i-visit-type')?.value || 'consultation';
+  const feeKey = FEE_TYPE_MAP[visitType] || 'checkup';
+  let total = fees[feeKey] || 0;
+  ['ultrasound','minor','major','other'].forEach(k => {
+    const cb = document.getElementById(`proc-${k}`);
+    if (cb && cb.checked) total += parseFloat(cb.value) || 0;
+  });
+  const feeInput = document.getElementById('i-fee');
+  if (feeInput) feeInput.value = total;
+  if (typeof window._feeCalcIntakeFee === 'function') window._feeCalcIntakeFee();
+}
+
+// ─────────────────────────────────────────────────────────
+// REFERRAL SYSTEM
+// ─────────────────────────────────────────────────────────
+export function openReferModal(id, col) {
+  const rec = col === 'token'
+    ? CACHE.tokens.find(t => t.id === id)
+    : CACHE.patients.find(p => p.id === id);
+  if (!rec) { showToast('Patient not found', true); return; }
+  document.getElementById('refer-src-id').value  = id;
+  document.getElementById('refer-src-col').value = col;
+  document.getElementById('refer-patient-info').innerHTML =
+    `<strong>${rec.patientName}</strong> · ${rec.age||'?'}y
+     <span style="color:var(--muted);margin-left:8px;">${rec.checkFor||'—'}</span>
+     <br><span style="font-size:12px;color:var(--muted);">Currently with: Dr. ${rec.doctorName||'—'}</span>`;
+  const doctors = CACHE.staff.filter(s => s.role === 'doctor' && s.doctorName !== rec.doctorName);
+  const sel = document.getElementById('refer-to-doctor');
+  sel.innerHTML = '<option value="">— Select Doctor —</option>'
+    + doctors.map(d => `<option value="${d.doctorName||d.name}">${d.doctorName||d.name}</option>`).join('');
+  document.getElementById('refer-note').value = '';
+  document.getElementById('refer-fee').value  = '';
+  document.getElementById('refer-fee-hint').textContent = '';
+  document.getElementById('refer-alert').style.display = 'none';
+  openMo('mo-refer');
+}
+
+export function onReferDoctorChange() {
+  const sel     = document.getElementById('refer-to-doctor');
+  const docName = sel?.value;
+  const reason  = document.getElementById('refer-reason')?.value;
+  if (!docName) return;
+  const doctor = CACHE.staff.find(s => s.role === 'doctor' && (s.doctorName === docName || s.name === docName));
+  const fees   = doctor?.feeSchedule || {};
+  const map = {'Ultrasound':fees.ultrasound,'Minor Procedure':fees.minor,'Operation':fees.major,'Follow-up':fees.followup,'Specialist Opinion':fees.checkup};
+  const suggested = map[reason] || fees.checkup || 0;
+  if (suggested) {
+    document.getElementById('refer-fee').value = suggested;
+    document.getElementById('refer-fee-hint').textContent = `Auto-filled from Dr. ${docName}'s fee schedule`;
+  } else {
+    document.getElementById('refer-fee-hint').textContent = `Dr. ${docName} has no fee set — enter manually`;
+  }
+}
+
+export async function submitReferral() {
+  const srcId    = document.getElementById('refer-src-id').value;
+  const srcCol   = document.getElementById('refer-src-col').value;
+  const toDoctor = document.getElementById('refer-to-doctor').value;
+  const reason   = document.getElementById('refer-reason').value;
+  const note     = document.getElementById('refer-note').value.trim();
+  const fee      = parseFloat(document.getElementById('refer-fee').value) || 0;
+  const alertEl  = document.getElementById('refer-alert');
+  if (!toDoctor) {
+    alertEl.style.display = 'block';
+    alertEl.innerHTML = '<div class="alert ae">Select a doctor to refer to.</div>';
+    return;
+  }
+  const src = srcCol === 'token'
+    ? CACHE.tokens.find(t => t.id === srcId)
+    : CACHE.patients.find(p => p.id === srcId);
+  if (!src) return;
+
+  const todayStr   = new Date().toISOString().slice(0,10);
+  const todayCount = CACHE.tokens.filter(t => {
+    if (!t.timestamp) return false;
+    return new Date(t.timestamp.seconds?t.timestamp.seconds*1000:t.timestamp).toISOString().slice(0,10) === todayStr;
+  }).length;
+  const seq  = todayCount + 1;
+  const cuts = getDoctorCut(toDoctor, fee);
+
+  const newToken = {
+    seq, tokenId: 'T' + String(seq).padStart(3,'0'),
+    timestamp: serverTimestamp(),
+    patientName: src.patientName, age: src.age||'', gender: src.gender||'', phone: src.phone||'',
+    checkFor:    reason + (note ? ` — ${note}` : ''),
+    doctorName:  toDoctor, status: 'waiting',
+    isReferral: true, referredFrom: src.doctorName||CU.doctorName||'',
+    referredFromId: srcId, referralReason: reason, referralNote: note,
+    standardFee: fee, checkupFee: fee, discountAmt: 0, discountType: 'none',
+    isFree: fee === 0, totalFee: fee,
+    hospitalCut: cuts.hospitalCut, doctorCut: cuts.doctorCut,
+    feeStatus: 'Pending', paid: 'Pending',
+    feeHistory: [{
+      action: `Referral token — Dr. ${src.doctorName||'Unknown'} → Dr. ${toDoctor}`,
+      by: CU.name||CU.email, at: new Date().toISOString(), amount: fee,
+      note: `${reason}${note?' — '+note:''}`
+    }],
+    bp: src.bp||'', pulse: src.pulse||'', temperature: src.temperature||'',
+    spo2: src.spo2||'', allergies: src.allergies||'', medHistory: src.medHistory||'',
+    createdBy: CU.uid, createdByName: CU.name||CU.email,
+    prescription: null, diagnosis: '', rxAdvice: '', rxFollowup: '',
+  };
+
+  alertEl.style.display = 'block';
+  alertEl.innerHTML = '<div class="alert ai">⏳ Creating referral token...</div>';
+  const newId = await safeWrite(() => restAdd('tokens', newToken));
+  if (!newId) return;
+
+  await safeWrite(() => restUpdate(srcCol === 'token' ? 'tokens' : 'patients', srcId, {
+    referredTo: toDoctor, referredToId: newId,
+    referralReason: reason, referralNote: note, hasReferral: true,
+  }));
+
+  alertEl.innerHTML = `<div class="alert as">✅ Referral token ${newToken.tokenId} created for Dr. ${toDoctor}</div>`;
+  showToast(`✓ Patient referred to Dr. ${toDoctor}`);
+  setTimeout(() => { closeMo('mo-refer'); viewToken(newId, 'token'); }, 1400);
+}
+
+// ─────────────────────────────────────────────────────────
+// DOCTOR SETTLEMENT (admin collects hospital cut from doctor)
+// ─────────────────────────────────────────────────────────
+export function openDocSettlement(doctorName) {
+  const body = document.getElementById('doc-settle-body');
+  if (!body) return;
+  const all  = [...(CACHE.tokens||[]), ...(CACHE.patients||[])];
+  const recs = all.filter(p =>
+    p.doctorName === doctorName &&
+    p.feeStatus === 'Doctor-Collected' &&
+    !p.hospitalCutCollected
+  );
+  const hospitalOwed = recs.reduce((s,p) => s+(p.hospitalCut||0), 0);
+  const doctorKept   = recs.reduce((s,p) => s+(p.doctorCut||0), 0);
+  const totalColl    = recs.reduce((s,p) => s+(p.feeCollectedAmount||p.checkupFee||0), 0);
+
+  if (!recs.length) {
+    body.innerHTML = `<div class="alert as" style="margin:16px;">✅ No outstanding hospital cut from Dr. ${doctorName}.</div>`;
+    openMo('mo-doc-settle'); return;
+  }
+
+  const idsJson = JSON.stringify(recs.map(r=>r.id)).replace(/"/g,'&quot;');
+  body.innerHTML = `
+    <div style="background:#f0faf9;border-radius:8px;padding:14px 18px;margin-bottom:14px;font-size:13px;">
+      <strong style="font-size:15px;">Dr. ${doctorName}</strong>
+      <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div><div style="color:var(--muted);font-size:11px;">Total Collected</div><strong>₨${totalColl.toLocaleString()}</strong></div>
+        <div><div style="color:var(--muted);font-size:11px;">Doctor Keeps</div><strong style="color:var(--green);">₨${doctorKept.toLocaleString()}</strong></div>
+        <div><div style="color:var(--muted);font-size:11px;">Hospital Due From Doctor</div><strong style="color:var(--red);">₨${hospitalOwed.toLocaleString()}</strong></div>
+      </div>
+    </div>
+    <div class="tw" style="margin-bottom:14px;max-height:220px;overflow-y:auto;">
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead><tr style="background:#f0faf9;position:sticky;top:0;">
+          <th style="padding:7px 10px;text-align:left;">Patient</th><th>Date</th>
+          <th>Collected</th><th style="color:var(--green);">Dr. Keeps</th>
+          <th style="color:var(--red);">Hosp. Due</th>
+        </tr></thead>
+        <tbody>
+          ${recs.map(p => {
+            const ts = p.timestamp
+              ? new Date(p.timestamp.seconds?p.timestamp.seconds*1000:p.timestamp).toLocaleDateString('en-PK')
+              : '—';
+            return `<tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:7px 10px;"><strong>${p.patientName}</strong>
+                <br><span style="color:var(--muted);font-size:11px;">${p.tokenId||p.id.slice(-5)}</span></td>
+              <td style="padding:7px;">${ts}</td>
+              <td style="padding:7px;">₨${(p.feeCollectedAmount||p.checkupFee||0).toLocaleString()}</td>
+              <td style="padding:7px;color:var(--green);">₨${(p.doctorCut||0).toLocaleString()}</td>
+              <td style="padding:7px;color:var(--red);font-weight:600;">₨${(p.hospitalCut||0).toLocaleString()}</td>
+            </tr>`;
+          }).join('')}
+          <tr style="background:#f0faf9;font-weight:700;">
+            <td colspan="4" style="padding:8px 10px;text-align:right;">TOTAL Hospital Due:</td>
+            <td style="padding:8px;color:var(--red);font-size:15px;">₨${hospitalOwed.toLocaleString()}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="fgrid" style="margin-bottom:12px;">
+      <div class="fl"><label>Amount Received from Doctor (PKR)</label>
+        <input type="number" id="doc-settle-amt" value="${hospitalOwed}" style="font-size:16px;font-weight:600;"></div>
+      <div class="fl"><label>Receipt / Confirmation</label>
+        <input type="text" id="doc-settle-note" placeholder="e.g. Cash received, counted by admin"></div>
+    </div>
+    <div id="doc-settle-verify" style="margin-bottom:10px;"></div>
+    <div class="brow">
+      <button class="btn bt" style="background:var(--green);" id="doc-settle-btn"
+        onclick="confirmDocSettlement('${doctorName}','${idsJson}')">
+        ✅ Confirm — Hospital Cut Received
+      </button>
+      <button class="btn bo" onclick="closeMo('mo-doc-settle')">Cancel</button>
+    </div>`;
+  openMo('mo-doc-settle');
+}
+
+export async function confirmDocSettlement(doctorName, idsRaw) {
+  const recIds = JSON.parse(idsRaw.replace(/&quot;/g,'"'));
+  const amt    = parseFloat(document.getElementById('doc-settle-amt')?.value) || 0;
+  const note   = document.getElementById('doc-settle-note')?.value.trim() || '';
+  const verEl  = document.getElementById('doc-settle-verify');
+  const btn    = document.getElementById('doc-settle-btn');
+
+  const all  = [...(CACHE.tokens||[]),...(CACHE.patients||[])];
+  const recs = recIds.map(id => all.find(p => p.id === id)).filter(Boolean);
+  const expect = recs.reduce((s,p) => s+(p.hospitalCut||0), 0);
+
+  // Mismatch warning on first click
+  if (amt < expect * 0.99 && btn && !btn.dataset.warned) {
+    const short = expect - amt;
+    verEl.innerHTML = `<div class="alert ae">
+      ⚠ Amount is ₨${short.toLocaleString()} SHORT (expected ₨${expect.toLocaleString()}).
+      If this is correct, click <strong>Confirm</strong> again to save with the shortfall noted.
+    </div>`;
+    btn.dataset.warned = '1';
+    return;
+  }
+
+  verEl.innerHTML = '<div class="alert ai">⏳ Recording settlement...</div>';
+  let done = 0;
+  for (const p of recs) {
+    const col  = (p._fromToken || CACHE.tokens.find(t=>t.id===p.id)) ? 'tokens' : 'patients';
+    const hist = (p.feeHistory||[]).concat([{
+      action: `Hospital cut ₨${(p.hospitalCut||0).toLocaleString()} collected from Dr. ${doctorName}`,
+      by: CU.name||CU.email, at: new Date().toISOString(),
+      amount: p.hospitalCut||0, note
+    }]);
+    await safeWrite(() => restUpdate(col, p.id, {
+      hospitalCutCollected: true,
+      hospitalCutCollectedBy:  CU.name||CU.email,
+      hospitalCutCollectedAt:  new Date().toISOString(),
+      hospitalCutNote: note,
+      feeStatus: 'Paid', paid: 'Paid',
+      feeHistory: hist,
+    }));
+    done++;
+  }
+  verEl.innerHTML = `<div class="alert as">✅ ₨${amt.toLocaleString()} received from Dr. ${doctorName} — ${done} records cleared.</div>`;
+  showToast(`✅ Hospital cut collected from Dr. ${doctorName}`);
+  setTimeout(() => closeMo('mo-doc-settle'), 1800);
 }

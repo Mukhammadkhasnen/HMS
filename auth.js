@@ -21,8 +21,10 @@ export function initAuth() {
 export function showLoginScreen() {
   document.getElementById('loading').style.display    = 'none';
   document.getElementById('app').style.display        = 'none';
-  // Hide hamburger — not logged in
+  // Hide hamburger, close sidebar and overlay
   document.getElementById('hamburger')?.classList.remove('logged-in');
+  document.querySelector('.sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('open');
   const ls = document.getElementById('login-screen');
   ls.style.display        = 'flex';
   ls.style.flexDirection  = 'column';
@@ -148,7 +150,9 @@ export async function loadUserProfile(user, retryCount = 0) {
 export async function doLogout() {
   stopPolling();
   clearCU();
-  // Hide hamburger on logout
+  // Hide hamburger and close sidebar + overlay on logout
   document.getElementById('hamburger')?.classList.remove('logged-in');
+  document.querySelector('.sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('open');
   await signOut(auth);
 }

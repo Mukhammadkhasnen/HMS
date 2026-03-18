@@ -239,12 +239,15 @@ export function renderQueue() {
         ${t.feeNote ? `<span style="color:var(--muted);font-size:11px;">· ${t.feeNote}</span>` : ''}
       </div>
       ${t.bp || t.pulse ? `<div class="qvit">${t.bp?`<div class="qv">BP: ${t.bp}</div>`:''}${t.pulse?`<div class="qv">♥ ${t.pulse}</div>`:''}${t.temperature?`<div class="qv">🌡 ${t.temperature}°</div>`:''}${t.spo2?`<div class="qv">O₂ ${t.spo2}%</div>`:''}</div>` : ''}
+      ${t.isReferral ? `<div style="font-size:12px;background:#bee3f8;color:#2c5282;border-radius:6px;padding:5px 10px;margin-top:6px;">🔀 Referred by Dr. ${t.referredFrom||'—'} · ${t.referralReason||''}</div>` : ''}
+      ${t.hasReferral ? `<div style="font-size:12px;background:#c6f6d5;color:#276749;border-radius:6px;padding:5px 10px;margin-top:6px;">✅ Referred to Dr. ${t.referredTo||'—'} · ${t.referralReason||''}</div>` : ''}
       ${t.checkFor ? `<div style="font-size:13px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><strong>Complaint:</strong> ${t.checkFor}${t.symptomDuration ? ` (${t.symptomDuration})` : ''}</div>` : ''}
       ${t.allergies ? `<div style="font-size:12px;color:var(--red);margin-top:4px;"><strong>⚠ Allergy:</strong> ${t.allergies}</div>` : ''}
       ${t.notes     ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;"><strong>Nurse Note:</strong> ${t.notes}</div>` : ''}
       <div style="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap;">
         <button class="btn bo bsm" onclick="viewToken('${t.id}','token')">🎫 Token</button>
         ${isD ? `<button class="btn bt bsm" onclick="openRxMo('${t.id}','token')">✍ Prescribe</button>` : ''}
+        ${isD ? `<button class="btn bo bsm" style="background:#553c9a;color:white;" onclick="openReferModal('${t.id}','token')">🔀 Refer</button>` : ''}
         ${isD || isA ? `<button class="btn bo bsm" onclick="markSeen('${t.id}')">✓ Seen</button>` : ''}
         ${feeBtn}
       </div>
@@ -311,6 +314,9 @@ export function renderPts() {
       <td><div class="brow">
         <button class="btn bo bsm" onclick="viewToken('${p.id}','${p._fromToken?'token':'patient'}')">🎫</button>
         ${opBillBtn}
+        ${(isD || isA) && !p.hasReferral ? `<button class="btn bsm" style="background:#553c9a;color:white;font-size:11px;" onclick="openReferModal('${p.id}','${p._fromToken?'token':'patient'}')">🔀</button>` : ''}
+        ${p.isReferral ? `<span class="badge bb" style="font-size:10px;" title="Referred by Dr. ${p.referredFrom||''}">🔀 Ref</span>` : ''}
+        ${p.hasReferral ? `<span class="badge bg" style="font-size:10px;" title="Referred to Dr. ${p.referredTo||''}">✅ Ref'd</span>` : ''}
         ${isA ? `<button class="btn bo bsm" onclick="editPt('${p.id}')">✏️</button><button class="btn bred bsm" onclick="delPt('${p.id}')">🗑</button>` : ''}
       </div></td>
     </tr>`;
@@ -367,6 +373,7 @@ export function renderDocPts() {
       <td><div class="brow">
         <button class="btn bo bsm" onclick="viewToken('${p.id}','${col}')">🎫</button>
         ${feeBtn}${opBtn}
+        ${!p.hasReferral ? `<button class="btn bsm" style="background:#553c9a;color:white;font-size:11px;" onclick="openReferModal('${p.id}','${col}')">🔀 Refer</button>` : `<span class="badge bg" style="font-size:10px;">✅ Ref'd</span>`}
       </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;">No patients yet</td></tr>';
@@ -656,9 +663,15 @@ export function renderConsumables() {
 export function renderUsers() {
   document.getElementById('utbl').innerHTML = CACHE.staff.map(u => {
     const cutInfo = u.role === 'doctor'
-      ? `<br><span style="font-size:10px;color:var(--muted);">${u.hospitalKeepsAll ? 'Hosp 100%' : u.noSplit ? 'Dr 100%' : `Dr ${u.doctorCutPct ?? 70}% / H ${100-(u.doctorCutPct ?? 70)}%`}</span>`
+      ? `<br><span style="font-size:10px;color:var(--muted);">${u.hospitalKeepsAll ? 'Hosp 100%' : u.noSplit ? 'Dr 100%' : `Dr ${u.doctorCutPct ?? 70}% / H ${100-(u.doctorCutPct ?? 70)}%`}</span>
+         ${u.feeSchedule?.checkup ? `<br><span style="font-size:10px;color:var(--teal);">Checkup: ₨${u.feeSchedule.checkup.toLocaleString()}</span>` : ''}`
       : '';
-    // Quick role buttons — only for admin, and not on yourself
+    // Check if doctor has outstanding hospital cut
+    const allRecs = [...(CACHE.tokens||[]),...(CACHE.patients||[])];
+    const docOwed = u.role === 'doctor'
+      ? allRecs.filter(p => p.doctorName === (u.doctorName||u.name) && p.feeStatus === 'Doctor-Collected' && !p.hospitalCutCollected)
+          .reduce((s,p) => s+(p.hospitalCut||0), 0)
+      : 0;
     const isSelf = u.id === CU.uid;
     const roleButtons = !isSelf ? `
       <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
@@ -675,6 +688,7 @@ export function renderUsers() {
       <td><div class="brow">
         <button class="btn bo bsm" onclick="editUserMo('${u.id}')">✏️ Edit</button>
         ${!isSelf ? `<button class="btn bred bsm" onclick="toggleUserActive('${u.id}',${u.active===false})">${u.active===false?'Enable':'Disable'}</button>` : ''}
+        ${u.role === 'doctor' && docOwed > 0 ? `<button class="btn bsm" style="background:#d69e2e;color:white;font-size:11px;" onclick="openDocSettlement('${u.doctorName||u.name}')">💰 Collect Hosp Cut (₨${docOwed.toLocaleString()})</button>` : ''}
       </div></td>
     </tr>`;
   }).join('');

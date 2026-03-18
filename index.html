@@ -277,7 +277,30 @@ tbody tr:hover{background:#f9fefd;}
             <div class="fl"><label>Gender</label><select id="i-gen"><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option></select></div>
             <div class="fl"><label>Phone</label><input type="text" id="i-ph" placeholder="03xx-xxxxxxx"></div>
             <div class="fl"><label>Complaint *</label><input type="text" id="i-cf" placeholder="e.g. Fever, Chest Pain"></div>
-            <div class="fl"><label>Assign Doctor *</label><select id="i-doc"><option value="">— Select Doctor —</option></select></div>
+            <div class="fl"><label>Assign Doctor *</label>
+              <select id="i-doc" onchange="onIntakeDoctorChange()">
+                <option value="">— Select Doctor —</option>
+              </select>
+            </div>
+            <div class="fl" id="i-visit-type-wrap" style="display:none;">
+              <label>Visit Type</label>
+              <select id="i-visit-type" onchange="onIntakeDoctorChange()">
+                <option value="consultation">Consultation</option>
+                <option value="followup">Follow-up</option>
+                <option value="referral">Referred by another doctor</option>
+              </select>
+            </div>
+            <div class="fl" id="i-procedures-wrap" style="display:none;">
+              <label>Additional Procedures</label>
+              <div id="i-procedures-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
+            </div>
+            <div class="fl" id="i-referral-from-wrap" style="display:none;">
+              <label>Referred From (Doctor / Hospital)</label>
+              <input type="text" id="i-referral-from" placeholder="e.g. Dr. Ahmed, City Hospital">
+            </div>
+            <div class="fl" id="i-referral-reason-wrap" style="display:none;">
+              <label>Referral Reason</label>
+              <input type="text" id="i-referral-reason" placeholder="e.g. For ultrasound, cardiology opinion"></div>
           </div>
         </div>
         <div class="fs"><div class="fst">🩺 Vital Signs</div>
@@ -302,7 +325,9 @@ tbody tr:hover{background:#f9fefd;}
         <div class="fs"><div class="fst">💰 Billing & Fee</div>
           <div class="fgrid">
             <div class="fl"><label>Standard Fee (PKR)</label>
-              <input type="number" id="i-fee" placeholder="0" min="0" value="" oninput="calcIntakeFee()"></div>
+              <input type="number" id="i-fee" placeholder="0" min="0" value="" oninput="calcIntakeFee()">
+              <div id="i-fee-hint" style="font-size:11px;color:var(--muted);margin-top:3px;"></div>
+            </div>
             <div class="fl"><label>Discount / Free</label>
               <select id="i-discount-type" onchange="toggleIntakeDiscount()">
                 <option value="none">No Discount — Full Fee</option>
@@ -592,6 +617,15 @@ tbody tr:hover{background:#f9fefd;}
         <div id="settle-outstanding" style="padding:8px 22px 16px;"></div>
       </div>
 
+      <!-- Doctor Hospital Cut Outstanding -->
+      <div class="card" style="margin-bottom:18px;">
+        <div class="ch">
+          <h3>💰 Hospital Cut Owed by Doctors</h3>
+          <span style="font-size:12px;color:var(--muted);">Fees doctor collected directly — hospital's share not yet received</span>
+        </div>
+        <div id="settle-doctor-cuts" style="padding:8px 22px 16px;"></div>
+      </div>
+
       <!-- Discounts & Free consultations report -->
       <div class="card" style="margin-bottom:18px;">
         <div class="ch"><h3>Discounts & Free Consultations</h3><span id="settle-disc-count" style="font-size:12px;color:var(--muted);"></span></div>
@@ -715,8 +749,9 @@ tbody tr:hover{background:#f9fefd;}
   <div class="md" style="max-width:680px;">
     <div class="mh">
       <h3>Write Prescription</h3>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button class="btn bo bsm" onclick="rxOpenFavsManager()" title="Manage favourites and custom drugs">⭐ My Favourites</button>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button class="btn bo bsm" onclick="openReferralFromRx()" title="Refer this patient to another doctor">↗ Refer</button>
+        <button class="btn bo bsm" onclick="rxOpenFavsManager()" title="Manage favourites and custom drugs">⭐ Favs</button>
         <button class="mclose" onclick="closeMo('mo-rx')">×</button>
       </div>
     </div>
@@ -808,6 +843,26 @@ tbody tr:hover{background:#f9fefd;}
         <label>Doctor's % (e.g. 60 means doctor gets 60%, hospital gets 40%)</label>
         <input type="number" id="u-cut-pct" min="0" max="100" placeholder="e.g. 60">
       </div>
+      <!-- Doctor fee schedule — shown when role=doctor, IDs match actions.js _readFeeSchedule() -->
+      <div id="u-fees-wrap" style="display:none;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 8px;">💰 Fee Schedule (auto-fills when staff registers a patient)</div>
+        <div class="fgrid">
+          <div class="fl"><label>Standard Checkup Fee (PKR)</label>
+            <input type="number" id="u-fee-checkup" placeholder="e.g. 1000" min="0"></div>
+          <div class="fl"><label>Follow-up Fee (PKR)</label>
+            <input type="number" id="u-fee-followup" placeholder="e.g. 500" min="0"></div>
+          <div class="fl"><label>Ultrasound Fee (PKR)</label>
+            <input type="number" id="u-fee-ultrasound" placeholder="e.g. 1500" min="0"></div>
+          <div class="fl"><label>Minor Procedure Fee (PKR)</label>
+            <input type="number" id="u-fee-minor" placeholder="e.g. 2000" min="0"></div>
+          <div class="fl"><label>Major Operation Fee (PKR)</label>
+            <input type="number" id="u-fee-major" placeholder="e.g. 15000" min="0"></div>
+          <div class="fl"><label>Other Service Name</label>
+            <input type="text" id="u-fee-other-label" placeholder="e.g. ECG, X-Ray, Dressing"></div>
+          <div class="fl"><label>Other Service Fee (PKR)</label>
+            <input type="number" id="u-fee-other-amt" placeholder="0" min="0"></div>
+        </div>
+      </div>
     </div>
     <div style="margin-top:14px;padding:12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e;">
       ⚠ The staff member will log in using their <strong>email and password</strong> above. Share these credentials with them securely.
@@ -817,6 +872,56 @@ tbody tr:hover{background:#f9fefd;}
       <button class="btn bo" onclick="closeMo('mo-user')">Cancel</button>
     </div>
     <input type="hidden" id="u-id">
+  </div>
+</div>
+
+<!-- REFERRAL MODAL -->
+<div class="mo" id="mo-refer">
+  <div class="md" style="max-width:520px;">
+    <div class="mh"><h3>🔀 Refer Patient to Another Doctor</h3><button class="mclose" onclick="closeMo('mo-refer')">×</button></div>
+    <div id="refer-patient-info" style="background:var(--cream);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;border:1px solid var(--border);"></div>
+    <input type="hidden" id="refer-src-id">
+    <input type="hidden" id="refer-src-col">
+    <div class="fgrid">
+      <div class="fl"><label>Refer To Doctor *</label>
+        <select id="refer-to-doctor" onchange="onReferDoctorChange()">
+          <option value="">— Select Doctor —</option>
+        </select>
+      </div>
+      <div class="fl"><label>Reason / Service *</label>
+        <select id="refer-reason">
+          <option value="Ultrasound">Ultrasound</option>
+          <option value="X-Ray">X-Ray</option>
+          <option value="ECG">ECG</option>
+          <option value="Lab Test">Lab Test</option>
+          <option value="Specialist Opinion">Specialist Opinion</option>
+          <option value="Dressing">Dressing / Wound Care</option>
+          <option value="Physiotherapy">Physiotherapy</option>
+          <option value="Operation">Operation / Procedure</option>
+          <option value="Follow-up">Follow-up Consultation</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="fl"><label>Custom Note / Reason</label>
+        <input type="text" id="refer-note" placeholder="e.g. Rule out gallstones — needs ultrasound abdomen"></div>
+      <div class="fl"><label>Referral Fee (PKR)</label>
+        <input type="number" id="refer-fee" placeholder="0" min="0">
+        <div id="refer-fee-hint" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+    </div>
+    <div id="refer-alert" style="display:none;margin:10px 0;"></div>
+    <div class="brow" style="margin-top:16px;">
+      <button class="btn bt" onclick="submitReferral()">🔀 Create Referral Token</button>
+      <button class="btn bo" onclick="closeMo('mo-refer')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- DOCTOR SETTLEMENT — admin collects hospital cut from doctor -->
+<div class="mo" id="mo-doc-settle">
+  <div class="md" style="max-width:560px;">
+    <div class="mh"><h3>💰 Collect Hospital Cut from Doctor</h3><button class="mclose" onclick="closeMo('mo-doc-settle')">×</button></div>
+    <div id="doc-settle-body"></div>
   </div>
 </div>
 
@@ -944,6 +1049,74 @@ tbody tr:hover{background:#f9fefd;}
   </div>
 </div>
 
+<!-- REFERRAL MODAL — doctor refers patient to another doctor -->
+<div class="mo" id="mo-referral">
+  <div class="md" style="max-width:520px;">
+    <div class="mh"><h3>↗ Refer Patient to Another Doctor</h3><button class="mclose" onclick="closeMo('mo-referral')">×</button></div>
+    <input type="hidden" id="ref-pid">
+    <input type="hidden" id="ref-col">
+    <div id="ref-patient-info" style="background:var(--cream);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;border:1px solid var(--border);"></div>
+    <div class="fl" style="margin-bottom:12px;">
+      <label>Refer to Doctor *</label>
+      <select id="ref-to-doc">
+        <option value="">— Select Doctor —</option>
+      </select>
+    </div>
+    <div class="fl" style="margin-bottom:12px;">
+      <label>Reason for Referral *</label>
+      <input type="text" id="ref-reason" placeholder="e.g. For ultrasound, cardiology opinion, second opinion">
+    </div>
+    <div class="fl" style="margin-bottom:12px;">
+      <label>Urgency</label>
+      <select id="ref-urgency">
+        <option value="routine">Routine — next available</option>
+        <option value="soon">Soon — within 24 hours</option>
+        <option value="urgent">Urgent — today</option>
+      </select>
+    </div>
+    <div class="fl" style="margin-bottom:12px;">
+      <label>Clinical Notes for Receiving Doctor</label>
+      <textarea id="ref-notes" rows="3" placeholder="Relevant history, findings, what you need the other doctor to assess..."></textarea>
+    </div>
+    <div style="background:#bee3f8;border-radius:8px;padding:10px 14px;font-size:12px;color:#2c5282;margin-bottom:14px;">
+      📋 A new token will be created for the referred doctor. The fee for their consultation will be calculated separately based on their fee schedule.
+    </div>
+    <div class="brow">
+      <button class="btn bt" onclick="saveReferral()">↗ Send Referral</button>
+      <button class="btn bo" onclick="closeMo('mo-referral')">Cancel</button>
+    </div>
+    <div id="ref-result" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- DOCTOR FEE SCHEDULE MODAL — doctor edits own fees -->
+<div class="mo" id="mo-my-fees">
+  <div class="md" style="max-width:500px;">
+    <div class="mh"><h3>💰 My Fee Schedule</h3><button class="mclose" onclick="closeMo('mo-my-fees')">×</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">These are your standard fees. You can always apply a discount or waiver on a per-patient basis when collecting.</div>
+    <div class="fgrid" style="margin-bottom:12px;">
+      <div class="fl"><label>Standard Consultation Fee (PKR)</label>
+        <input type="number" id="mf-consult" placeholder="e.g. 1000" min="0"></div>
+      <div class="fl"><label>Follow-up Fee (PKR)</label>
+        <input type="number" id="mf-followup" placeholder="e.g. 500" min="0"></div>
+    </div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Procedure Fees</div>
+    <div id="mf-procedures-list" style="margin-bottom:10px;"></div>
+    <div class="fgrid" style="margin-bottom:8px;">
+      <div class="fl"><label>Procedure Name</label>
+        <input type="text" id="mf-proc-name" placeholder="e.g. Ultrasound"></div>
+      <div class="fl"><label>Fee (PKR)</label>
+        <input type="number" id="mf-proc-fee" placeholder="e.g. 2000" min="0"></div>
+    </div>
+    <button class="btn bo bsm" onclick="addMyProcedure()" style="margin-bottom:14px;">+ Add Procedure</button>
+    <input type="hidden" id="mf-procedures-json" value="[]">
+    <div class="brow">
+      <button class="btn bt" onclick="saveMyFees()">💾 Save My Fee Schedule</button>
+      <button class="btn bo" onclick="closeMo('mo-my-fees')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- OPERATION BILL MODAL -->
 <div class="mo" id="mo-op-bill">
   <div class="md" style="max-width:600px;">
@@ -1011,6 +1184,7 @@ import { viewToken, printToken } from './token.js';
 import {
   openMo, closeMo,
   submitIntake, clearIntake, toggleIntakeFee, toggleIntakeIndoor,
+  onIntakeDoctorChange, recalcIntakeFeeFromProcs,
   submitPatient, clearForm, toggleTx, toggleCounterFee,
   markSeen,
   openRxMo, saveRx,
@@ -1021,6 +1195,8 @@ import {
   addConsumable, delCons, openUse, doUseConsumable, toggleUseAction, viewUsageLog,
   openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive,
   toggleUR, toggleCutField, quickAssignRole,
+  openReferModal, onReferDoctorChange, submitReferral,
+  openDocSettlement, confirmDocSettlement,
   exportCSV,
   toggleIntakeDiscount, calcIntakeFee,
 } from './actions.js';
@@ -1083,6 +1259,12 @@ Object.assign(window, {
   // staff
   openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive,
   toggleUR, toggleCutField, quickAssignRole,
+  // intake doctor auto-fill
+  onIntakeDoctorChange, recalcIntakeFeeFromProcs,
+  // referral
+  openReferModal, onReferDoctorChange, submitReferral,
+  // doctor settlement
+  openDocSettlement, confirmDocSettlement,
   // data management
   toggleDelCustom, previewDeletion, confirmAndDelete,
   // misc

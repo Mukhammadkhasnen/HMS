@@ -200,11 +200,25 @@ export async function saveDoctorFee() {
   const col = document.getElementById('fee-mo-col').value;
   const amt  = parseFloat(document.getElementById('fee-doc-amount')?.value) || 0;
   const note = document.getElementById('fee-doc-note')?.value.trim() || '';
+  const rec  = _getRec(id, col); if (!rec) return;
+
+  // Calculate what the doctor owes the hospital from this collection
+  const hospitalOwed = rec.hospitalCut || 0;
+  const doctorKeeps  = rec.doctorCut   || 0;
+
   await _feeUpdate(id, col, {
-    feeStatus:'Doctor-Collected', feeCollectedBy:CU.name||CU.email,
-    feeCollectedAt:new Date().toISOString(), feeCollectedAmount:amt, feeNote:note
-  }, 'Doctor collected', amt, note);
-  showToast('✓ Marked as collected by you'); _closeFee();
+    feeStatus: 'Doctor-Collected',
+    feeCollectedBy: CU.name||CU.email,
+    feeCollectedAt: new Date().toISOString(),
+    feeCollectedAmount: amt,
+    feeNote: note,
+    // Track hospital cut owed — cleared by admin in doctor settlement
+    hospitalCutOwed: hospitalOwed,
+    hospitalCutCollected: false,
+    doctorCutOwed: doctorKeeps,
+  }, `Doctor collected ₨${amt.toLocaleString()} — hospital cut ₨${hospitalOwed.toLocaleString()} owed`, amt, note);
+  showToast(`✓ Marked collected — remember to hand ₨${hospitalOwed.toLocaleString()} to hospital`);
+  _closeFee();
 }
 
 export async function saveDoctorFree() {
@@ -641,6 +655,42 @@ export function renderSettlePage() {
        <td style="font-size:12px;">${p.settledBy||'—'}</td>
        <td style="font-size:12px;color:var(--muted);">${p.settledAt?new Date(p.settledAt.seconds?p.settledAt.seconds*1000:p.settledAt).toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'}):'—'}</td></tr>`
     ).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">No settled records yet</td></tr>';
+  }
+
+  // Doctor hospital cut outstanding
+  const docCutEl = document.getElementById('settle-doctor-cuts');
+  if (docCutEl) {
+    // Group by doctor — find all records where doctor collected and hospital cut unpaid
+    const docOwed = {};
+    all.forEach(p => {
+      if (p.feeStatus === 'Doctor-Collected' && !p.hospitalCutCollected && p.hospitalCut > 0) {
+        const dn = p.doctorName || 'Unknown';
+        if (!docOwed[dn]) docOwed[dn] = { records: [], totalOwed: 0, totalCollected: 0 };
+        docOwed[dn].records.push(p);
+        docOwed[dn].totalOwed      += p.hospitalCut || 0;
+        docOwed[dn].totalCollected += p.feeCollectedAmount || p.checkupFee || 0;
+      }
+    });
+    const entries = Object.entries(docOwed);
+    if (!entries.length) {
+      docCutEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--muted);font-size:13px;">✅ No outstanding hospital cuts from doctors</div>';
+    } else {
+      docCutEl.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse;">' +
+        '<thead><tr style="background:#fef3c7;"><th style="padding:9px 12px;text-align:left;">Doctor</th>' +
+        '<th>Patients</th><th>Total Collected</th><th style="color:var(--red);">Hospital Due</th><th>Action</th></tr></thead><tbody>' +
+        entries.map(([dn, data]) =>
+          `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:9px 12px;"><strong>${dn}</strong></td>
+            <td style="text-align:center;">${data.records.length}</td>
+            <td>₨${data.totalCollected.toLocaleString()}</td>
+            <td style="color:var(--red);font-weight:700;font-size:15px;">₨${data.totalOwed.toLocaleString()}</td>
+            <td><button class="btn bsm" style="background:#d69e2e;color:white;"
+              onclick="openDocSettlement('${dn}')">
+              💰 Collect from Dr. ${dn}
+            </button></td>
+          </tr>`
+        ).join('') + '</tbody></table>';
+    }
   }
 }
 
