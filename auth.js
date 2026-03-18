@@ -21,6 +21,8 @@ export function initAuth() {
 export function showLoginScreen() {
   document.getElementById('loading').style.display    = 'none';
   document.getElementById('app').style.display        = 'none';
+  // Hide hamburger — not logged in
+  document.getElementById('hamburger')?.classList.remove('logged-in');
   const ls = document.getElementById('login-screen');
   ls.style.display        = 'flex';
   ls.style.flexDirection  = 'column';
@@ -122,6 +124,8 @@ export async function loadUserProfile(user, retryCount = 0) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('loading').style.display      = 'none';
   document.getElementById('app').style.display          = 'block';
+  // Show hamburger now that user is logged in
+  document.getElementById('hamburger')?.classList.add('logged-in');
   document.getElementById('sbn').textContent            = CU.name || CU.email;
 
   const pill = document.getElementById('srp');
@@ -144,5 +148,7 @@ export async function loadUserProfile(user, retryCount = 0) {
 export async function doLogout() {
   stopPolling();
   clearCU();
+  // Hide hamburger on logout
+  document.getElementById('hamburger')?.classList.remove('logged-in');
   await signOut(auth);
 }
