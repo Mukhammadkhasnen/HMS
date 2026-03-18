@@ -50,6 +50,7 @@ export function showPage(id) {
     earnings:     renderEarnings,
     budget:       renderBudget,
     users:        renderUsers,
+    settlement:   () => { if (typeof window.renderSettlePage === 'function') window.renderSettlePage(); },
   };
   if (renders[id]) renders[id]();
 }
@@ -71,6 +72,7 @@ export function buildNav() {
     items.push({ id: 'add-patient',  icon: '🧾', label: 'Backdate / Walk-in'      });
     items.push({ id: 'patients',     icon: '🗂️', label: 'All Patients'            });
     items.push({ id: 'earnings',     icon: '💰', label: 'Earnings & Distribution' });
+    items.push({ id: 'settlement',   icon: '💵', label: 'Fee Settlement'          });
     items.push({ id: 'budget',       icon: '📊', label: 'Budget & Consumables'    });
     items.push({ id: 'users',        icon: '⚙️', label: 'Manage Staff'            });
     items.push({ id: 'data-mgmt',    icon: '🗃️', label: 'Data Management'         });
@@ -194,15 +196,31 @@ export function renderQueue() {
     const fs  = t.feeStatus || 'Pending';
     const feeAmt = t.checkupFee ? `₨${Number(t.checkupFee).toLocaleString()}` : 'No fee set';
 
-    // Fee badge
-    let feeBadge, feeBtn = '';
-    if      (fs === 'Counter-Paid')    feeBadge = '<span class="badge bg" style="font-size:10px;">✅ Paid at Counter</span>';
-    else if (fs === 'Doctor-Collected'){ feeBadge = '<span class="badge" style="background:#d69e2e;color:white;font-size:10px;">💊 Doctor Collected</span>'; if (!isD) feeBtn = `<button class="btn bsm" style="background:var(--green);color:white;" onclick="confirmStaffReceipt_btn('${t.id}','token')">✅ Confirm Receipt</button>`; }
-    else if (fs === 'Doctor-Pending')  { feeBadge = '<span class="badge br" style="font-size:10px;">⏳ Doctor Collecting</span>'; if (isD) feeBtn = `<button class="btn bsm" style="background:#d69e2e;color:white;" onclick="openFeeModal('${t.id}','token','doctor')">💰 Mark I Collected</button>`; }
-    else {
-      feeBadge = '<span class="badge br" style="font-size:10px;">⏳ Fee Pending</span>';
-      if (!isD) feeBtn = `<button class="btn bsm" style="background:var(--green);color:white;" onclick="openFeeModal('${t.id}','token','counter')">💵 Collect at Counter</button>`;
-      if (isD)  feeBtn = `<button class="btn bsm" style="background:#d69e2e;color:white;" onclick="openFeeModal('${t.id}','token','doctor')">💰 I Collected Fee</button>`;
+    // Fee badge — covers all statuses from new fee.js
+    let feeBadge = '', feeBtn = '';
+    const feeColors = {
+      'Paid':             ['bg',  '✅ Paid'],
+      'Counter-Paid':     ['bg',  '✅ Paid at Counter'],
+      'Settled':          ['bg',  '✅ Settled'],
+      'Free':             ['bg',  '🆓 Free'],
+      'Doctor-Free':      ['bg',  '🆓 Free (Doctor)'],
+      'Doctor-Collected': ['ba',  '💊 Doctor Collected'],
+      'Counter-Instruct': ['ba',  '📋 Counter Instructed'],
+      'Doctor-Pending':   ['br',  '⏳ Doctor Collecting'],
+      'Return-Requested': ['br',  '↩ Return Requested'],
+      'Returned':         ['bgr', '↩ Returned'],
+      'Deferred':         ['bgr', '⏳ Deferred'],
+      'Pending':          ['br',  '⏳ Fee Pending'],
+    };
+    const [badgeCls, badgeLabel] = feeColors[fs] || ['br', fs];
+    feeBadge = `<span class="badge ${badgeCls}" style="font-size:10px;">${badgeLabel}</span>`;
+
+    const isPaid    = ['Paid','Counter-Paid','Settled','Free','Doctor-Free','Returned'].includes(fs);
+    const isDoctorQ = fs === 'Doctor-Pending' || fs === 'Doctor-Collected';
+
+    if (!isPaid) {
+      if (isD) feeBtn = `<button class="btn bsm" style="background:#d69e2e;color:white;" onclick="openFeeModal('${t.id}','token')">💰 Fee</button>`;
+      else     feeBtn = `<button class="btn bsm" style="background:var(--green);color:white;" onclick="openFeeModal('${t.id}','token')">💵 Fee</button>`;
     }
 
     return `<div class="qcard">
@@ -268,9 +286,19 @@ export function renderPts() {
   tb.innerHTML = pts.map(p => {
     const ts = p.timestamp ? new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp) : new Date();
     const fs = p.feeStatus || p.paid || 'Pending';
-    const fsBadgeClass = fs === 'Counter-Paid' || fs === 'Paid' ? 'bg' : fs === 'Doctor-Collected' ? 'ba' : 'br';
-    const collectBtn = !isS && fs !== 'Paid' && fs !== 'Counter-Paid'
-      ? `<br><button class="btn bsm" style="font-size:10px;padding:2px 7px;margin-top:3px;background:var(--green);color:white;" onclick="openFeeModal('${p.id}','patient','counter')">💵 Collect</button>` : '';
+    const isPaid = ['Paid','Counter-Paid','Settled','Free','Doctor-Free','Returned'].includes(fs);
+    const fsBadgeClass = isPaid ? 'bg' : ['Doctor-Collected','Counter-Instruct'].includes(fs) ? 'ba' : 'br';
+    const fsLabels = {
+      'Paid':'✅ Paid','Counter-Paid':'✅ Paid','Settled':'✅ Settled','Free':'🆓 Free',
+      'Doctor-Free':'🆓 Free','Doctor-Collected':'💊 Dr Collected',
+      'Counter-Instruct':'📋 Instructed','Return-Requested':'↩ Return Req',
+      'Returned':'↩ Returned','Deferred':'⏳ Deferred','Pending':'⏳ Pending',
+    };
+    const fsLabel = fsLabels[fs] || fs;
+    const collectBtn = !isS && !isPaid
+      ? `<br><button class="btn bsm" style="font-size:10px;padding:2px 7px;margin-top:3px;background:var(--green);color:white;" onclick="openFeeModal('${p.id}','${p._fromToken?'token':'patient'}')">💵 Fee</button>` : '';
+    const opBillBtn = p.indoor === 'Yes' || p.treatmentDesc
+      ? `<button class="btn bo bsm" style="font-size:11px;" onclick="openOpBill('${p.id}')">🧾 Bill</button>` : '';
     return `<tr>
       <td><strong style="color:var(--teal);font-size:12px;">${p.tokenId || p.id.slice(-5)}</strong></td>
       <td style="color:var(--muted);font-size:12px;">${ts.toLocaleDateString()}</td>
@@ -279,9 +307,10 @@ export function renderPts() {
       <td style="font-size:12px;">${p.checkFor || '—'}</td>
       <td>${isS ? '—' : '₨' + (p.checkupFee || 0).toLocaleString()}</td>
       <td>${isS ? '—' : '<strong>₨' + (p.totalFee || 0).toLocaleString() + '</strong>'}</td>
-      <td><span class="badge ${fsBadgeClass}">${fs}</span>${collectBtn}</td>
+      <td><span class="badge ${fsBadgeClass}">${fsLabel}</span>${collectBtn}</td>
       <td><div class="brow">
-        <button class="btn bo bsm" onclick="viewToken('${p.id}','patient')">🎫</button>
+        <button class="btn bo bsm" onclick="viewToken('${p.id}','${p._fromToken?'token':'patient'}')">🎫</button>
+        ${opBillBtn}
         ${isA ? `<button class="btn bo bsm" onclick="editPt('${p.id}')">✏️</button><button class="btn bred bsm" onclick="delPt('${p.id}')">🗑</button>` : ''}
       </div></td>
     </tr>`;
@@ -310,20 +339,35 @@ export function renderDocPts() {
      <div class="sc" style="background:linear-gradient(135deg,#553c9a,#6b46c1)"><div class="lb">Fee Split</div><div class="vl" style="font-size:14px;">Dr ${cutPct}% / Hosp ${hospPct}%</div></div>`;
 
   document.getElementById('dptbl').innerHTML = pts.map(p => {
-    const ts = p.timestamp ? new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp) : new Date();
+    const ts  = p.timestamp ? new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp) : new Date();
+    const fs  = p.feeStatus || p.paid || 'Pending';
+    const col = p._fromToken ? 'token' : 'patient';
+    const isPaid = ['Paid','Counter-Paid','Settled','Free','Doctor-Free','Returned'].includes(fs);
+    const fsLabels = {'Paid':'✅ Paid','Counter-Paid':'✅ Paid','Settled':'✅ Settled','Free':'🆓 Free',
+      'Doctor-Free':'🆓 Free','Doctor-Collected':'💊 Collected','Counter-Instruct':'📋 Instruct',
+      'Return-Requested':'↩ Return','Returned':'↩ Returned','Deferred':'⏳ Defer','Pending':'⏳ Pending'};
+    const fsBadgeCls = isPaid ? 'bg' : ['Doctor-Collected','Counter-Instruct'].includes(fs) ? 'ba' : 'br';
+    const feeBtn = !isPaid
+      ? `<button class="btn bsm" style="font-size:10px;background:#d69e2e;color:white;" onclick="openFeeModal('${p.id}','${col}')">💰 Fee</button>`
+      : '';
+    const opBtn = p.indoor === 'Yes' || p.treatmentDesc
+      ? `<button class="btn bo bsm" style="font-size:10px;" onclick="openOpBill('${p.id}')">🧾 Bill</button>` : '';
     return `<tr>
       <td><strong style="color:var(--teal);font-size:12px;">${p.tokenId || p.id.slice(-5)}</strong></td>
       <td style="font-size:12px;">${ts.toLocaleDateString()}</td>
       <td><strong>${p.patientName}</strong></td>
       <td style="font-size:12px;">${p.checkFor || '—'}</td>
-      <td style="font-size:11px;color:var(--muted);">${p.bp || '—'}/${p.pulse || '—'}</td>
+      <td style="font-size:11px;color:var(--muted);">${p.bp||'—'}/${p.pulse||'—'}</td>
       <td>₨${(p.checkupFee || 0).toLocaleString()}</td>
-      <td>${p.indoor === 'Yes' ? '<span class="badge bb">₨' + (p.treatmentCharges || 0).toLocaleString() + '</span>' : '—'}</td>
+      <td>${p.indoor === 'Yes' ? `<span class="badge bb">₨${(p.treatmentCharges||0).toLocaleString()}</span>` : '—'}</td>
       <td><strong>₨${(p.totalFee || 0).toLocaleString()}</strong></td>
       <td style="color:var(--red);">₨${(p.hospitalCut || 0).toLocaleString()}</td>
       <td style="color:var(--green);font-weight:600;">₨${(p.doctorCut || 0).toLocaleString()}</td>
-      <td><span class="badge ${p.paid === 'Paid' ? 'bg' : 'br'}">${p.paid}</span></td>
-      <td><button class="btn bo bsm" onclick="viewToken('${p.id}','patient')">🎫</button></td>
+      <td><span class="badge ${fsBadgeCls}" style="font-size:10px;">${fsLabels[fs]||fs}</span></td>
+      <td><div class="brow">
+        <button class="btn bo bsm" onclick="viewToken('${p.id}','${col}')">🎫</button>
+        ${feeBtn}${opBtn}
+      </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;">No patients yet</td></tr>';
 }
@@ -440,25 +484,74 @@ function renderBOverview() {
   const budget  = getCurBudget();
   const exps    = getMonthExpenses(m);
   const spent   = exps.reduce((s, e) => s + (e.amount || 0), 0);
-  const revenue = CACHE.patients.reduce((s, p) => {
+
+  // Revenue = all fees collected this month (from both tokens and patients)
+  const allPts = allPatients();
+  const revenue = allPts.reduce((s, p) => {
     if (!p.timestamp) return s;
     const ts = new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp);
-    return (MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) === m ? s + (p.totalFee || 0) : s;
+    if ((MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) !== m) return s;
+    // Only count collected fees
+    if (['Paid','Counter-Paid','Settled','Free'].includes(p.feeStatus) || p.paid === 'Paid')
+      return s + (p.checkupFee || 0);
+    return s;
   }, 0);
-  const lowStock = CACHE.consumables.filter(c => c.minStock && (c.quantity || 0) <= (c.minStock || 0)).length;
+
+  // Hospital cut = sum of hospital cuts this month
+  const hospitalCut = allPts.reduce((s, p) => {
+    if (!p.timestamp) return s;
+    const ts = new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp);
+    return (MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) === m ? s + (p.hospitalCut || 0) : s;
+  }, 0);
+
+  // Doctor cut = sum of doctor cuts this month
+  const doctorCut = allPts.reduce((s, p) => {
+    if (!p.timestamp) return s;
+    const ts = new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp);
+    return (MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) === m ? s + (p.doctorCut || 0) : s;
+  }, 0);
+
+  // Free / discounted this month
+  const freeCount      = allPts.filter(p => {
+    if (!p.timestamp) return false;
+    const ts = new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp);
+    return (MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) === m && (p.isFree || p.paid === 'Free');
+  }).length;
+  const totalDiscount  = allPts.reduce((s, p) => {
+    if (!p.timestamp) return false;
+    const ts = new Date(p.timestamp.seconds ? p.timestamp.seconds*1000 : p.timestamp);
+    return (MONTHS[ts.getMonth()] + ' ' + ts.getFullYear()) === m ? s + (p.discountAmt || 0) : s;
+  }, 0);
+
+  const lowStock = CACHE.consumables.filter(c => c.minStock && (c.quantity || 0) <= (c.minStock || 0));
+
+  // Update low stock banner (visible to doctor + admin)
+  const banner = document.getElementById('lowStockBanner');
+  const textEl = document.getElementById('lowStockText');
+  if (banner && textEl) {
+    if (lowStock.length > 0) {
+      textEl.textContent = `${lowStock.length} item${lowStock.length > 1 ? 's' : ''} LOW STOCK: ${lowStock.slice(0,3).map(c=>c.name).join(', ')}${lowStock.length > 3 ? '…' : ''}`;
+      banner.style.display = 'block';
+      banner.style.top = document.getElementById('offlineBanner')?.style.display === 'block' ? '40px' : '0';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
 
   document.getElementById('bstats').innerHTML =
     `<div class="sc"><div class="lb">Monthly Revenue</div><div class="vl">₨${revenue.toLocaleString()}</div><div class="sb">${m}</div></div>
-     <div class="sc rd"><div class="lb">Total Spent</div><div class="vl">₨${spent.toLocaleString()}</div></div>
-     <div class="sc gr"><div class="lb">Net</div><div class="vl">₨${(revenue - spent).toLocaleString()}</div></div>
-     <div class="sc am"><div class="lb">Low Stock Items</div><div class="vl">${lowStock}</div><div class="sb">need restocking</div></div>`;
+     <div class="sc bl"><div class="lb">Hospital Cut</div><div class="vl">₨${hospitalCut.toLocaleString()}</div><div class="sb">Goes to hospital</div></div>
+     <div class="sc gr"><div class="lb">Doctor Cuts</div><div class="vl">₨${doctorCut.toLocaleString()}</div><div class="sb">Owed to doctors</div></div>
+     <div class="sc rd"><div class="lb">Total Spent</div><div class="vl">₨${spent.toLocaleString()}</div><div class="sb">Expenses logged</div></div>
+     <div class="sc gr"><div class="lb">Net (Hosp Cut − Spent)</div><div class="vl">₨${(hospitalCut - spent).toLocaleString()}</div></div>
+     <div class="sc am"><div class="lb">Low Stock Items</div><div class="vl">${lowStock.length}</div><div class="sb">${freeCount} free · ₨${totalDiscount.toLocaleString()} discounted</div></div>`;
 
   const pct = budget.total > 0 ? Math.min(100, (spent / budget.total) * 100) : 0;
   const cls = pct > 90 ? 'over' : pct > 70 ? 'warn' : '';
   document.getElementById('bvs').innerHTML = budget.total > 0
     ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>Spent: <strong>₨${spent.toLocaleString()}</strong></span><span>Budget: <strong>₨${budget.total.toLocaleString()}</strong></span></div>
        <div class="budget-bar"><div class="budget-fill ${cls}" style="width:${pct}%"></div></div>
-       <div style="font-size:12px;color:var(--muted);margin-top:6px;">${pct.toFixed(1)}% used</div>`
+       <div style="font-size:12px;color:var(--muted);margin-top:6px;">${pct.toFixed(1)}% used — Hospital cut this month: ₨${hospitalCut.toLocaleString()}</div>`
     : '<div style="color:var(--muted);font-size:13px;">No budget set. <button onclick="openBudgetSet()" style="margin-top:8px;padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:7px;cursor:pointer;font-size:13px;">Set Budget</button></div>';
 
   const cats = {};
@@ -500,6 +593,18 @@ export function renderConsumables() {
   const lsel = document.getElementById('lowstock-count');
   if (lsel) lsel.textContent = low.length > 0 ? `⚠ ${low.length} low stock` : '';
 
+  // Update global low stock banner whenever consumables render
+  const banner = document.getElementById('lowStockBanner');
+  const textEl  = document.getElementById('lowStockText');
+  if (banner && textEl) {
+    if (low.length > 0) {
+      textEl.textContent = `${low.length} item${low.length > 1 ? 's' : ''} LOW STOCK: ${low.slice(0,3).map(c=>c.name).join(', ')}${low.length > 3 ? '…' : ''}`;
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
   document.getElementById('constbl').innerHTML = cons.map(c => {
     const tv    = (c.quantity || 0) * (c.unitCost || 0);
     const isLow = c.minStock && (c.quantity || 0) <= (c.minStock || 0);
@@ -511,20 +616,38 @@ export function renderConsumables() {
         ? `<span style="color:var(--red);font-size:12px;">⚠ ${diff < 0 ? 'EXPIRED' : Math.round(diff) + 'd'}</span>`
         : ex.toLocaleDateString();
     }
+    // Last usage info from usageLog array
+    const lastUse = c.usageLog && c.usageLog.length
+      ? c.usageLog[c.usageLog.length - 1]
+      : null;
+    const lastUseText = lastUse
+      ? `<span style="font-size:10px;color:var(--muted);">${lastUse.qty} used by ${lastUse.by}<br>${lastUse.for || ''}</span>`
+      : '<span style="font-size:10px;color:var(--muted);">No usage logged</span>';
+
     return `<tr>
-      <td><strong>${c.name}</strong>${c.supplier ? `<br><small style="color:var(--muted);">${c.supplier}</small>` : ''}</td>
+      <td>
+        <strong>${c.name}</strong>
+        ${c.supplier ? `<br><small style="color:var(--muted);">${c.supplier}</small>` : ''}
+        ${isLow ? `<br><span style="font-size:11px;font-weight:600;color:var(--red);">⚠ LOW STOCK — Reorder needed</span>` : ''}
+      </td>
       <td style="font-size:12px;"><span class="badge bgr">${c.category}</span></td>
-      <td><strong style="color:${isLow ? 'var(--red)' : 'var(--slate)'};">${c.quantity || 0}</strong> ${c.unit || 'pcs'}${isLow ? '<br><span style="color:var(--red);font-size:11px;">LOW STOCK</span>' : ''}</td>
+      <td style="text-align:center;">
+        <strong style="color:${isLow ? 'var(--red)' : 'var(--slate)'};">${c.quantity || 0}</strong>
+        <span style="font-size:11px;color:var(--muted);"> ${c.unit || 'pcs'}</span>
+        ${c.minStock ? `<br><span style="font-size:10px;color:var(--muted);">Min: ${c.minStock}</span>` : ''}
+      </td>
       <td style="font-size:12px;">₨${(c.unitCost || 0).toLocaleString()}</td>
-      <td style="font-size:12px;">₨${tv.toLocaleString()}</td>
+      <td style="font-size:12px;font-weight:600;">₨${tv.toLocaleString()}</td>
       <td style="font-size:12px;">${expiry || '—'}</td>
+      <td>${lastUseText}</td>
       <td><span class="badge ${isLow ? 'br' : 'bg'}">${isLow ? 'Low' : 'OK'}</span></td>
-      <td><div class="brow">
-        <button class="btn bo bsm" onclick="openUse('${c.id}','${c.name.replace(/'/g,"\\'")}',${c.quantity||0})">📦</button>
-        <button class="btn bred bsm" onclick="delCons('${c.id}')">🗑</button>
+      <td><div class="brow" style="flex-direction:column;gap:4px;">
+        <button class="btn bo bsm" onclick="openUse('${c.id}','${c.name.replace(/'/g,"\\'")}',${c.quantity||0})">📦 Use/Restock</button>
+        <button class="btn bo bsm" style="font-size:11px;" onclick="viewUsageLog('${c.id}')">📋 History</button>
+        <button class="btn bred bsm" style="font-size:11px;" onclick="delCons('${c.id}')">🗑</button>
       </div></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">No items yet</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">No items yet</td></tr>';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -533,17 +656,25 @@ export function renderConsumables() {
 export function renderUsers() {
   document.getElementById('utbl').innerHTML = CACHE.staff.map(u => {
     const cutInfo = u.role === 'doctor'
-      ? `<br><span style="font-size:10px;color:var(--muted);">${u.hospitalKeepsAll ? 'Hospital keeps 100%' : u.noSplit ? 'Doctor keeps 100%' : `Dr: ${u.doctorCutPct ?? 70}% / Hosp: ${100 - (u.doctorCutPct ?? 70)}%`}</span>`
+      ? `<br><span style="font-size:10px;color:var(--muted);">${u.hospitalKeepsAll ? 'Hosp 100%' : u.noSplit ? 'Dr 100%' : `Dr ${u.doctorCutPct ?? 70}% / H ${100-(u.doctorCutPct ?? 70)}%`}</span>`
       : '';
+    // Quick role buttons — only for admin, and not on yourself
+    const isSelf = u.id === CU.uid;
+    const roleButtons = !isSelf ? `
+      <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
+        ${u.role !== 'admin'  ? `<button class="btn bsm" style="font-size:10px;padding:2px 7px;background:#fed7d7;color:#9b2c2c;border:none;border-radius:4px;cursor:pointer;" onclick="quickAssignRole('${u.id}','admin')">→Admin</button>` : ''}
+        ${u.role !== 'doctor' ? `<button class="btn bsm" style="font-size:10px;padding:2px 7px;background:#bee3f8;color:#2c5282;border:none;border-radius:4px;cursor:pointer;" onclick="quickAssignRole('${u.id}','doctor')">→Doctor</button>` : ''}
+        ${u.role !== 'staff'  ? `<button class="btn bsm" style="font-size:10px;padding:2px 7px;background:#c6f6d5;color:#276749;border:none;border-radius:4px;cursor:pointer;" onclick="quickAssignRole('${u.id}','staff')">→Staff</button>` : ''}
+      </div>` : '<span style="font-size:11px;color:var(--muted);">(you)</span>';
     return `<tr>
       <td><strong>${u.name || '—'}</strong></td>
       <td style="font-size:12px;">${u.email || '—'}</td>
-      <td><span class="badge ${u.role==='admin'?'br':u.role==='doctor'?'bb':'bg'}">${u.role==='staff'?'Nurse/Staff':u.role}</span></td>
+      <td><span class="badge ${u.role==='admin'?'br':u.role==='doctor'?'bb':'bg'}">${u.role==='staff'?'Nurse/Staff':u.role}</span>${roleButtons}</td>
       <td style="font-size:12px;">${(u.doctorName || u.department || '—') + cutInfo}</td>
       <td><span class="badge ${u.active===false?'br':'bg'}">${u.active===false?'Inactive':'Active'}</span></td>
       <td><div class="brow">
-        <button class="btn bo bsm" onclick="editUserMo('${u.id}')">✏️</button>
-        ${u.id !== CU.uid ? `<button class="btn bred bsm" onclick="toggleUserActive('${u.id}',${u.active===false})">${u.active===false?'Enable':'Disable'}</button>` : ''}
+        <button class="btn bo bsm" onclick="editUserMo('${u.id}')">✏️ Edit</button>
+        ${!isSelf ? `<button class="btn bred bsm" onclick="toggleUserActive('${u.id}',${u.active===false})">${u.active===false?'Enable':'Disable'}</button>` : ''}
       </div></td>
     </tr>`;
   }).join('');

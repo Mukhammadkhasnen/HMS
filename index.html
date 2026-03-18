@@ -194,6 +194,9 @@ tbody tr:hover{background:#f9fefd;}
 <div id="pz" style="display:none;"></div>
 <div class="saving" id="savingToast">💾 Saving...</div>
 <div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:#d69e2e;color:white;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;">⚠ You are offline — changes will sync automatically when connection returns.</div>
+<div id="lowStockBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9997;background:var(--red);color:white;text-align:center;padding:8px 16px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;" onclick="showPage('budget')">
+  ⚠ <span id="lowStockText">Low stock items need restocking</span> — Click to view →
+</div>
 
 <!-- LOGIN -->
 <div id="login-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;">
@@ -226,7 +229,7 @@ tbody tr:hover{background:#f9fefd;}
   <div class="mc">
 
     <!-- DASHBOARD -->
-    <div class="page active" id="page-dashboard">
+    <div class="page" id="page-dashboard">
       <div id="db-warn" style="display:none;background:#fed7d7;border:1px solid #feb2b2;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:#9b2c2c;"></div>
       <div class="pgh"><h2>Dashboard</h2><p id="dg"></p></div>
       <div class="sg" id="dstats"></div>
@@ -298,7 +301,28 @@ tbody tr:hover{background:#f9fefd;}
         </div>
         <div class="fs"><div class="fst">💰 Billing & Fee</div>
           <div class="fgrid">
-            <div class="fl"><label>Checkup Fee (PKR)</label><input type="number" id="i-fee" placeholder="0" min="0" value=""></div>
+            <div class="fl"><label>Standard Fee (PKR)</label>
+              <input type="number" id="i-fee" placeholder="0" min="0" value="" oninput="calcIntakeFee()"></div>
+            <div class="fl"><label>Discount / Free</label>
+              <select id="i-discount-type" onchange="toggleIntakeDiscount()">
+                <option value="none">No Discount — Full Fee</option>
+                <option value="free">Free / Waived (₨0)</option>
+                <option value="percent">% Percentage Discount</option>
+                <option value="fixed">Fixed Amount Discount (PKR)</option>
+              </select>
+            </div>
+            <div class="fl" id="i-disc-val-wrap" style="display:none;">
+              <label id="i-disc-val-label">Discount Value</label>
+              <input type="number" id="i-disc-val" placeholder="0" min="0" oninput="calcIntakeFee()">
+            </div>
+            <div class="fl" id="i-disc-reason-wrap" style="display:none;">
+              <label>Reason (required for discount/free)</label>
+              <input type="text" id="i-disc-reason" placeholder="e.g. Staff family, poor patient, admin approved">
+            </div>
+            <div class="fl" id="i-final-fee-wrap" style="display:none;">
+              <label>Final Amount to Collect</label>
+              <div id="i-final-fee-display" style="font-size:20px;font-weight:700;padding:9px 12px;background:#f0faf9;border-radius:8px;border:1.5px solid var(--teal);color:var(--teal-dark);">₨0</div>
+            </div>
             <div class="fl"><label>Fee Collection</label>
               <select id="i-paid" onchange="toggleIntakeFee()">
                 <option value="Pending">Not Collected Yet</option>
@@ -523,7 +547,7 @@ tbody tr:hover{background:#f9fefd;}
         <div class="card">
           <div class="ch"><h3>Consumables Inventory</h3><span style="font-size:12px;color:var(--muted);" id="lowstock-count"></span></div>
           <div class="tw"><table>
-            <thead><tr><th>Item</th><th>Category</th><th>Stock</th><th>Unit Cost</th><th>Total Value</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Item</th><th>Category</th><th>Stock</th><th>Unit Cost</th><th>Total Value</th><th>Expiry</th><th>Last Usage</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="constbl"></tbody>
           </table></div>
         </div>
@@ -538,6 +562,60 @@ tbody tr:hover{background:#f9fefd;}
         <div class="tw"><table>
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Doctor Name / Dept</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="utbl"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- DATA MANAGEMENT (admin only) -->
+    <div class="page" id="page-settlement">
+      <div class="pgh"><h2>💵 Fee Settlement & Audit</h2><p>Daily reconciliation — clear collections, spot discrepancies, sign off</p></div>
+      <div class="sg" id="settle-stats-top"></div>
+
+      <!-- Low stock alert for this page -->
+      <div id="settle-lowstock-alert" style="display:none;background:#fed7d7;border:1px solid #feb2b2;border-radius:9px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#9b2c2c;"></div>
+
+      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+        <div class="fr" style="margin:0;gap:8px;">
+          <select id="settle-filter" onchange="renderSettlePage()" style="padding:7px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif;">
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week">This Week</option>
+            <option value="all">All Pending</option>
+          </select>
+        </div>
+        <button class="btn bt bsm" onclick="openSettleModal()">📋 Run Settlement</button>
+      </div>
+
+      <!-- Outstanding fees by collector -->
+      <div class="card" style="margin-bottom:18px;">
+        <div class="ch"><h3>Outstanding Collections</h3></div>
+        <div id="settle-outstanding" style="padding:8px 22px 16px;"></div>
+      </div>
+
+      <!-- Discounts & Free consultations report -->
+      <div class="card" style="margin-bottom:18px;">
+        <div class="ch"><h3>Discounts & Free Consultations</h3><span id="settle-disc-count" style="font-size:12px;color:var(--muted);"></span></div>
+        <div class="tw"><table>
+          <thead><tr><th>Date</th><th>Patient</th><th>Doctor</th><th>Std Fee</th><th>Discount</th><th>Final</th><th>Reason</th><th>By</th></tr></thead>
+          <tbody id="settle-disc-tbl"></tbody>
+        </table></div>
+      </div>
+
+      <!-- Shortfalls / flags -->
+      <div class="card" style="margin-bottom:18px;" id="settle-flags-card" style="display:none;">
+        <div class="ch"><h3 style="color:var(--red);">⚠ Flagged — Amount Mismatches</h3></div>
+        <div class="tw"><table>
+          <thead><tr><th>Date</th><th>Patient</th><th>Expected</th><th>Collected</th><th>Shortfall</th><th>Collector</th></tr></thead>
+          <tbody id="settle-flags-tbl"></tbody>
+        </table></div>
+      </div>
+
+      <!-- Settlement history -->
+      <div class="card">
+        <div class="ch"><h3>Settlement History</h3></div>
+        <div class="tw"><table>
+          <thead><tr><th>Date</th><th>Collector</th><th>Role</th><th>Amount</th><th>Reference</th><th>Settled By</th><th>Time</th></tr></thead>
+          <tbody id="settle-history-tbl"></tbody>
         </table></div>
       </div>
     </div>
@@ -766,74 +844,134 @@ tbody tr:hover{background:#f9fefd;}
 
 <!-- CONSUMABLE USE MODAL -->
 <div class="mo" id="mo-use">
-  <div class="md" style="max-width:400px;">
-    <div class="mh"><h3>Use / Adjust Stock</h3><button class="mclose" onclick="closeMo('mo-use')">×</button></div>
-    <div id="useinfo" style="font-size:13px;margin-bottom:14px;color:var(--muted);"></div>
+  <div class="md" style="max-width:480px;">
+    <div class="mh"><h3>📦 Use / Adjust Stock</h3><button class="mclose" onclick="closeMo('mo-use')">×</button></div>
+    <div id="useinfo" style="font-size:13px;margin-bottom:14px;padding:10px 12px;background:var(--cream);border-radius:8px;"></div>
     <div class="fgrid">
-      <div class="fl"><label>Action</label><select id="use-act"><option value="use">Use (decrease stock)</option><option value="restock">Restock (increase stock)</option></select></div>
-      <div class="fl"><label>Quantity</label><input id="use-qty" type="number" min="1" placeholder="1"></div>
+      <div class="fl"><label>Action</label>
+        <select id="use-act" onchange="toggleUseAction()">
+          <option value="use">Use — decrease stock</option>
+          <option value="restock">Restock — increase stock</option>
+          <option value="expire">Mark Expired / Wasted</option>
+          <option value="transfer">Transfer to Another Dept</option>
+        </select>
+      </div>
+      <div class="fl"><label>Quantity</label>
+        <input id="use-qty" type="number" min="0.1" step="0.1" placeholder="1">
+      </div>
     </div>
-    <div class="fl" style="margin-top:12px;"><label>Note</label><input id="use-nt" type="text" placeholder="Optional reason"></div>
+    <!-- Usage context (shown when action = use) -->
+    <div id="use-context-wrap" style="margin-top:12px;">
+      <div class="fgrid">
+        <div class="fl"><label>Used For / Purpose</label>
+          <select id="use-purpose">
+            <option value="OPD">OPD Consultation</option>
+            <option value="Operation">Operation / Procedure</option>
+            <option value="Dressing">Wound Dressing</option>
+            <option value="Injection">Injection Administration</option>
+            <option value="Lab">Lab / Sample Collection</option>
+            <option value="Emergency">Emergency</option>
+            <option value="Ward">Ward / Admitted Patient</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="fl"><label>Patient Name (optional)</label>
+          <input type="text" id="use-patient" placeholder="Leave blank if general use">
+        </div>
+      </div>
+      <div class="fl" style="margin-top:10px;"><label>Doctor / Procedure (optional)</label>
+        <select id="use-doctor">
+          <option value="">— Select doctor or general use —</option>
+        </select>
+      </div>
+    </div>
+    <div class="fl" style="margin-top:12px;"><label>Note / Details</label>
+      <input id="use-nt" type="text" placeholder="e.g. Used for appendectomy, Ward B patient">
+    </div>
     <div class="brow" style="margin-top:18px;">
-      <button class="btn bt" onclick="doUseConsumable()">Confirm</button>
+      <button class="btn bt" onclick="doUseConsumable()">✓ Confirm</button>
       <button class="btn bo" onclick="closeMo('mo-use')">Cancel</button>
     </div>
     <input type="hidden" id="use-id">
+    <input type="hidden" id="use-item-name">
   </div>
 </div>
 
-<!-- FEE COLLECTION MODAL -->
+<!-- FEE COLLECTION MODAL — full version with discount/free/doctor instructions -->
 <div class="mo" id="mo-fee">
-  <div class="md" style="max-width:500px;">
+  <div class="md" style="max-width:560px;">
     <div class="mh"><h3 id="fee-mo-title">💰 Fee Collection</h3><button class="mclose" onclick="closeMo('mo-fee')">×</button></div>
-    <div style="padding:22px;">
-      <input type="hidden" id="fee-mo-id">
-      <input type="hidden" id="fee-mo-col">
-      <div id="fee-mo-patient" style="background:var(--cream);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:14px;border:1px solid var(--border);"></div>
+    <input type="hidden" id="fee-mo-id">
+    <input type="hidden" id="fee-mo-col">
 
-      <!-- DOCTOR: mark collected -->
-      <div id="fee-doc-section">
-        <div class="fl" style="margin-bottom:14px;">
-          <label>Amount Doctor Collected (PKR)</label>
-          <input type="number" id="fee-doc-amount" placeholder="Enter amount">
-        </div>
-        <div class="fl" style="margin-bottom:18px;">
-          <label>Note for Counter Staff</label>
-          <input type="text" id="fee-doc-note" placeholder="e.g. Cash taken, will hand to counter">
-        </div>
-        <button class="btn bt" style="width:100%;" onclick="saveDoctorFee()">✓ Mark Fee as Collected by Me</button>
-      </div>
+    <!-- Patient info + fee summary bar -->
+    <div id="fee-mo-patient" style="background:var(--cream);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;border:1px solid var(--border);"></div>
 
-      <!-- STAFF: confirm receipt from doctor -->
-      <div id="fee-staff-section" style="display:none;">
-        <div style="background:#fef3c7;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.7;">
-          <strong>⚠ Doctor collected this fee.</strong><br>
-          <span id="fee-staff-info"></span>
-        </div>
-        <div class="fl" style="margin-bottom:14px;">
-          <label>Amount Received from Doctor (PKR)</label>
-          <input type="number" id="fee-staff-amount" placeholder="Confirm amount received">
-        </div>
-        <div class="fl" style="margin-bottom:18px;">
-          <label>Staff Note</label>
-          <input type="text" id="fee-staff-note" placeholder="e.g. Received cash from Dr. Ahmed">
-        </div>
-        <button class="btn bt" style="width:100%;background:var(--green);" onclick="confirmStaffReceipt()">✅ Confirm & Mark as Paid</button>
-      </div>
-
-      <!-- COUNTER: collect now -->
-      <div id="fee-counter-section" style="display:none;">
-        <div class="fl" style="margin-bottom:14px;">
-          <label>Amount Received (PKR)</label>
-          <input type="number" id="fee-counter-amount" placeholder="Enter amount received">
-        </div>
-        <div class="fl" style="margin-bottom:18px;">
-          <label>Note / Receipt #</label>
-          <input type="text" id="fee-counter-note" placeholder="e.g. Cash, receipt #12">
-        </div>
-        <button class="btn bt" style="width:100%;background:var(--green);" onclick="saveCounterFee()">✅ Mark as Paid at Counter</button>
-      </div>
+    <!-- Fee history audit trail -->
+    <div id="fee-mo-hist-wrap" style="display:none;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">Audit Trail</div>
+      <div id="fee-mo-hist" style="font-size:12px;max-height:100px;overflow-y:auto;background:var(--cream);border-radius:7px;padding:8px 12px;line-height:1.8;"></div>
     </div>
+
+    <!-- ROLE: Doctor -->
+    <div id="fee-doc-section" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <button class="btn bsm" style="background:var(--teal);color:white;"  onclick="feeDocAction('collect')">💰 I Collected</button>
+        <button class="btn bsm" style="background:var(--green);color:white;" onclick="feeDocAction('free')">✅ Mark Free</button>
+        <button class="btn bsm" style="background:#d69e2e;color:white;"      onclick="feeDocAction('instruct')">📋 Tell Counter Amount</button>
+        <button class="btn bsm" style="background:var(--red);color:white;"   onclick="feeDocAction('return')">↩ Return to Patient</button>
+      </div>
+      <div id="fee-doc-form"></div>
+    </div>
+
+    <!-- ROLE: Staff/Counter -->
+    <div id="fee-staff-section" style="display:none;">
+      <div id="fee-staff-alert" style="border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.7;"></div>
+      <div id="fee-staff-form"></div>
+    </div>
+
+    <!-- ROLE: Admin (full override) -->
+    <div id="fee-admin-section" style="display:none;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;">Admin Override</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <button class="btn bsm" style="background:var(--green);color:white;" onclick="feeAdminAction('paid')">✅ Mark Paid</button>
+        <button class="btn bsm" style="background:var(--teal);color:white;"  onclick="feeAdminAction('free')">🆓 Mark Free</button>
+        <button class="btn bsm" style="background:var(--blue);color:white;"  onclick="feeAdminAction('discount')">💸 Apply Discount</button>
+        <button class="btn bsm" style="background:var(--red);color:white;"   onclick="feeAdminAction('return')">↩ Returned</button>
+      </div>
+      <div id="fee-admin-form"></div>
+    </div>
+  </div>
+</div>
+
+<!-- OPERATION BILL MODAL -->
+<div class="mo" id="mo-op-bill">
+  <div class="md" style="max-width:600px;">
+    <div class="mh"><h3>🧾 Operation / Procedure Bill</h3><button class="mclose" onclick="closeMo('mo-op-bill')">×</button></div>
+    <div id="op-bill-body"></div>
+    <div class="brow" style="margin-top:16px;">
+      <button class="btn bt" onclick="printOpBill()">🖨 Print Bill</button>
+      <button class="btn bo" onclick="closeMo('mo-op-bill')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAILY SETTLEMENT MODAL -->
+<div class="mo" id="mo-settle">
+  <div class="md" style="max-width:620px;">
+    <div class="mh"><h3>📋 Daily Fee Settlement</h3><button class="mclose" onclick="closeMo('mo-settle')">×</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Clear outstanding fee collections for a date. Each collector signs off their total.</div>
+    <div class="fl" style="margin-bottom:14px;"><label>Settlement Date</label>
+      <input type="date" id="settle-date"></div>
+    <div id="settle-preview" style="margin-bottom:16px;"></div>
+    <div id="settle-signoffs" style="margin-bottom:16px;"></div>
+    <div class="fl" style="margin-bottom:14px;"><label>Admin Reference / Receipt Note</label>
+      <input type="text" id="settle-ref" placeholder="e.g. Daily settlement #12, cash handover"></div>
+    <div class="brow">
+      <button class="btn bo" onclick="previewSettlement()">🔍 Preview</button>
+      <button class="btn bt" style="background:var(--green);" onclick="confirmSettlement()">✅ Confirm & Settle All</button>
+    </div>
+    <div id="settle-result" style="margin-top:12px;"></div>
   </div>
 </div>
 
@@ -875,21 +1013,34 @@ import {
   submitIntake, clearIntake, toggleIntakeFee, toggleIntakeIndoor,
   submitPatient, clearForm, toggleTx, toggleCounterFee,
   markSeen,
-  openFeeModal, saveDoctorFee, confirmStaffReceipt, saveCounterFee,
   openRxMo, saveRx,
   editPt, saveEdit, delPt, toggleEditTx,
   openDist, toggleDT, saveDist,
   openBudgetSet, saveBudget,
   addExpense, delExpense,
-  addConsumable, delCons, openUse, doUseConsumable,
+  addConsumable, delCons, openUse, doUseConsumable, toggleUseAction, viewUsageLog,
   openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive,
-  toggleUR, toggleCutField,
-  exportCSV
+  toggleUR, toggleCutField, quickAssignRole,
+  exportCSV,
+  toggleIntakeDiscount, calcIntakeFee,
 } from './actions.js';
 import { rxMedAC, rxMedKey, rxPickMed, rxDiagAC, rxPickDiag,
          rxToggleFav, rxOpenFavsManager, rxOpenAddCustom, rxSaveCustomDrug,
          rxRemoveFav, rxRemoveCustom, rxApplyCorrection, rxInit } from './rx.js';
 import { toggleDelCustom, previewDeletion, confirmAndDelete } from './datamgmt.js';
+import {
+  openFeeModal, feeDocAction, feeAdminAction,
+  saveDoctorFee, saveDoctorFree, saveDoctorInstruct, saveDoctorReturn,
+  confirmStaffReceipt, reportShortfall, saveCounterFee,
+  confirmFreeByCounter, confirmReturnToPatient, markPatientDeferred,
+  saveAdminFee, applyAdminDiscount,
+  openSettleModal, previewSettlement, confirmSettlement,
+  renderSettlePage,
+  openOpBill, printOpBill,
+  toggleIntakeDiscount as _feeToggleIntakeDiscount,
+  calcIntakeFee as _feeCalcIntakeFee,
+  getIntakeDiscountData,
+} from './fee.js';
 
 // ── Expose to global scope for HTML onclick handlers ──────
 Object.assign(window, {
@@ -899,15 +1050,23 @@ Object.assign(window, {
   showPage,
   // intake
   submitIntake, clearIntake, toggleIntakeFee, toggleIntakeIndoor,
+  toggleIntakeDiscount, calcIntakeFee,
   // backdate / walk-in
   submitPatient, clearForm, toggleTx, toggleCounterFee,
   // queue
   markSeen,
-  // fee
-  openFeeModal, saveDoctorFee, confirmStaffReceipt, saveCounterFee,
+  // fee modal
+  openFeeModal, feeDocAction, feeAdminAction,
+  saveDoctorFee, saveDoctorFree, saveDoctorInstruct, saveDoctorReturn,
+  confirmStaffReceipt, reportShortfall, saveCounterFee,
+  confirmFreeByCounter, confirmReturnToPatient, markPatientDeferred,
+  saveAdminFee, applyAdminDiscount,
+  openSettleModal, previewSettlement, confirmSettlement,
+  renderSettlePage,
+  openOpBill, printOpBill,
   // token
   viewToken, printToken,
-  // prescription + autocomplete
+  // prescription
   openRxMo, saveRx, rxMedAC, rxMedKey, rxPickMed, rxDiagAC, rxPickDiag,
   rxToggleFav, rxOpenFavsManager, rxOpenAddCustom, rxSaveCustomDrug,
   rxRemoveFav, rxRemoveCustom, rxApplyCorrection,
@@ -920,9 +1079,10 @@ Object.assign(window, {
   // expenses
   addExpense, delExpense,
   // consumables
-  addConsumable, delCons, openUse, doUseConsumable,
+  addConsumable, delCons, openUse, doUseConsumable, toggleUseAction, viewUsageLog,
   // staff
-  openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive, toggleUR, toggleCutField,
+  openUserMo, editUserMo, saveUser, saveEditUser, toggleUserActive,
+  toggleUR, toggleCutField, quickAssignRole,
   // data management
   toggleDelCustom, previewDeletion, confirmAndDelete,
   // misc
@@ -974,6 +1134,14 @@ document.querySelectorAll('.mo').forEach(m => {
 
 // ── Start the app ─────────────────────────────────────────
 initAuth();
+
+// Expose fee.js discount helpers under window names that actions.js stubs call
+window._feeToggleIntakeDiscount = _feeToggleIntakeDiscount;
+window._feeCalcIntakeFee        = _feeCalcIntakeFee;
+window.getIntakeDiscountData    = getIntakeDiscountData;
+// Also expose directly for HTML oninput calls
+window.toggleIntakeDiscount     = _feeToggleIntakeDiscount;
+window.calcIntakeFee            = _feeCalcIntakeFee;
 
 // ── Hook rxInit into auth so favourites load per doctor ───
 const _origOnAuth = window.__authHook;

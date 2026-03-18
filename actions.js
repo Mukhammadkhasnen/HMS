@@ -10,9 +10,90 @@ import { safeWrite, showToast, populateDropdowns, renderUsers,
          renderEarnings, renderBudget, renderExpenses, renderConsumables } from './ui.js';
 import { viewToken, printToken } from './token.js';
 
+// ── Discount helpers (delegated to fee.js but also exported here for intake)
+export function toggleIntakeDiscount() {
+  // handled via fee.js exposed to window — this stub kept for import compatibility
+  if (typeof window._feeToggleIntakeDiscount === 'function') window._feeToggleIntakeDiscount();
+}
+export function calcIntakeFee() {
+  if (typeof window._feeCalcIntakeFee === 'function') window._feeCalcIntakeFee();
+}
+
 // ── Shared modal helpers ──────────────────────────────────
 export function openMo(id)  { document.getElementById(id)?.classList.add('open');    }
 export function closeMo(id) { document.getElementById(id)?.classList.remove('open'); }
+
+// ── Toggle use action context ─────────────────────────────
+export function toggleUseAction() {
+  const act = document.getElementById('use-act')?.value;
+  const ctx = document.getElementById('use-context-wrap');
+  if (ctx) ctx.style.display = (act === 'use') ? 'block' : 'none';
+}
+
+// ── View usage log for a consumable ──────────────────────
+export function viewUsageLog(id) {
+  const c = CACHE.consumables.find(x => x.id === id);
+  if (!c) return;
+  const log = c.usageLog || [];
+
+  const rows = log.length
+    ? log.slice().reverse().map(u => {
+        const at    = u.at ? new Date(u.at).toLocaleString('en-PK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+        const isUse = ['use','expire','transfer'].includes(u.action);
+        return `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 10px;font-size:12px;color:var(--muted);">${at}</td>
+          <td style="padding:6px;"><span class="badge ${isUse?'br':'bg'}" style="font-size:10px;">${u.action||'use'}</span></td>
+          <td style="padding:6px;font-weight:600;color:${isUse?'var(--red)':'var(--green)'};">${isUse?'-':'+'}${u.qty||1} ${c.unit||'pcs'}</td>
+          <td style="padding:6px;font-size:12px;">${u.by||'—'}</td>
+          <td style="padding:6px;font-size:12px;">${u.purpose||u.for||'—'}</td>
+          <td style="padding:6px;font-size:12px;">${u.patientName||'—'}</td>
+          <td style="padding:6px;font-size:12px;">${u.doctor||'—'}</td>
+          <td style="padding:6px;font-size:12px;color:var(--muted);">${u.note||'—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted);">No usage logged yet</td></tr>';
+
+  // Build or reuse a usage-log modal
+  let modal = document.getElementById('mo-usage-log');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'mo';
+    modal.id = 'mo-usage-log';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeMo('mo-usage-log'); });
+  }
+  modal.innerHTML = `<div class="md" style="max-width:780px;">
+    <div class="mh">
+      <h3>📋 Usage Log — ${c.name}</h3>
+      <button class="mclose" onclick="closeMo('mo-usage-log')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+      Current stock: <strong style="color:var(--teal-dark);">${c.quantity||0} ${c.unit||'pcs'}</strong>
+      &nbsp;·&nbsp; Min stock: ${c.minStock||'—'}
+      &nbsp;·&nbsp; ${log.length} entries total
+    </div>
+    <div class="tw" style="max-height:420px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f0faf9;position:sticky;top:0;">
+          <th style="padding:8px 10px;text-align:left;">Date/Time</th>
+          <th style="padding:8px;">Action</th>
+          <th style="padding:8px;">Qty</th>
+          <th style="padding:8px;">By</th>
+          <th style="padding:8px;">Purpose</th>
+          <th style="padding:8px;">Patient</th>
+          <th style="padding:8px;">Doctor</th>
+          <th style="padding:8px;">Note</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="brow" style="margin-top:14px;">
+      <button class="btn bo" onclick="closeMo('mo-usage-log')">Close</button>
+    </div>
+  </div>`;
+
+  openMo('mo-usage-log');
+}
 
 // ─────────────────────────────────────────────────────────
 // PATIENT INTAKE (register + print token)
@@ -31,13 +112,19 @@ export function toggleIntakeIndoor() {
 
 export function clearIntake() {
   ['i-nm','i-age','i-ph','i-cf','i-bp','i-pu','i-tp','i-o2','i-wt','i-ht',
-   'i-al','i-md','i-hx','i-dur','i-nt','i-fee','i-cnote','i-tx','i-txc']
+   'i-al','i-md','i-hx','i-dur','i-nt','i-fee','i-cnote','i-tx','i-txc',
+   'i-disc-val','i-disc-reason']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('i-doc').value = '';
   document.getElementById('i-gen').value = '';
   document.getElementById('ia').innerHTML = '';
-  const ip = document.getElementById('i-paid');   if (ip) ip.value = 'Pending';
-  const ii = document.getElementById('i-indoor'); if (ii) ii.value = 'No';
+  const ip  = document.getElementById('i-paid');         if (ip)  ip.value  = 'Pending';
+  const ii  = document.getElementById('i-indoor');       if (ii)  ii.value  = 'No';
+  const idt = document.getElementById('i-discount-type'); if (idt) idt.value = 'none';
+  // Reset discount UI
+  ['i-disc-val-wrap','i-disc-reason-wrap','i-final-fee-wrap'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
   toggleIntakeFee(); toggleIntakeIndoor();
 }
 
@@ -59,11 +146,19 @@ export async function submitIntake() {
   }).length;
   const seq = todayCount + 1;
 
-  const fee = parseFloat(document.getElementById('i-fee').value) || 0;
-  const txc = parseFloat(document.getElementById('i-txc')?.value) || 0;
-  const indoor = document.getElementById('i-indoor').value;
+  // Get discount data from fee.js helper (available on window after bootstrap)
+  const discData = typeof window.getIntakeDiscountData === 'function'
+    ? window.getIntakeDiscountData()
+    : { standardFee: parseFloat(document.getElementById('i-fee').value)||0,
+        checkupFee:  parseFloat(document.getElementById('i-fee').value)||0,
+        discountAmt: 0, discountType: 'none', discountReason: '', isFree: false };
+
+  const stdFee    = discData.standardFee;
+  const fee       = discData.checkupFee;          // final after discount
+  const txc       = parseFloat(document.getElementById('i-txc')?.value) || 0;
+  const indoor    = document.getElementById('i-indoor').value;
   const feeStatus = document.getElementById('i-paid').value;
-  const cuts = getDoctorCut(doc, fee);
+  const cuts      = getDoctorCut(doc, fee);
 
   const tk = {
     seq, tokenId: 'T' + String(seq).padStart(3, '0'),
@@ -88,23 +183,31 @@ export async function submitIntake() {
     status:          'waiting',
     prescription:    null, diagnosis: '', rxAdvice: '', rxFollowup: '',
     createdBy:       CU.uid, createdByName: CU.name || CU.email,
+    // Fee with discount support
+    standardFee:     stdFee,
     checkupFee:      fee,
+    discountAmt:     discData.discountAmt,
+    discountType:    discData.discountType,
+    discountReason:  discData.discountReason,
+    isFree:          discData.isFree,
     indoor,
     treatmentDesc:   document.getElementById('i-tx')?.value.trim() || '',
     treatmentCharges: indoor === 'Yes' ? txc : 0,
     totalFee:        fee + (indoor === 'Yes' ? txc : 0),
-    hospitalCut:     cuts.hospitalCut,
-    doctorCut:       cuts.doctorCut,
-    feeStatus,
-    paid:            feeStatus === 'Counter-Paid' ? 'Paid' : 'Pending',
+    hospitalCut:     discData.isFree ? 0 : cuts.hospitalCut,
+    doctorCut:       discData.isFree ? 0 : cuts.doctorCut,
+    feeStatus:       discData.isFree ? 'Free' : feeStatus,
+    paid:            discData.isFree ? 'Free' : (feeStatus === 'Counter-Paid' ? 'Paid' : 'Pending'),
     feeCollectedBy:  feeStatus === 'Counter-Paid' ? (CU.name || CU.email) : '',
     feeCollectedAt:  feeStatus === 'Counter-Paid' ? new Date().toISOString() : '',
-    feeNote:         feeStatus === 'Counter-Paid' ? document.getElementById('i-cnote').value.trim() : '',
-    feeHistory:      feeStatus === 'Counter-Paid' ? [{
-      action: 'Counter collected', by: CU.name || CU.email,
-      at: new Date().toISOString(), amount: fee,
-      note: document.getElementById('i-cnote').value.trim()
-    }] : []
+    feeNote:         discData.isFree ? discData.discountReason : (feeStatus === 'Counter-Paid' ? document.getElementById('i-cnote').value.trim() : ''),
+    feeHistory:      discData.isFree
+      ? [{ action: 'Marked FREE at registration', by: CU.name||CU.email, at: new Date().toISOString(), amount: 0, note: discData.discountReason }]
+      : feeStatus === 'Counter-Paid' ? [{
+          action: 'Counter collected at registration', by: CU.name || CU.email,
+          at: new Date().toISOString(), amount: fee,
+          note: document.getElementById('i-cnote').value.trim()
+        }] : []
   };
 
   const id = await safeWrite(() => restAdd('tokens', tk));
@@ -114,7 +217,7 @@ export async function submitIntake() {
   setTimeout(() => {
     clearIntake();
     viewToken(id, 'token');
-    setTimeout(printToken, 400); // auto-print
+    setTimeout(printToken, 400);
   }, 600);
 }
 
@@ -127,7 +230,8 @@ export async function markSeen(id) {
 }
 
 // ─────────────────────────────────────────────────────────
-// FEE COLLECTION WORKFLOW
+// FEE — delegated entirely to fee.js
+// These stubs exist so any legacy references still work.
 // ─────────────────────────────────────────────────────────
 export function toggleCounterFee() {
   const v = document.getElementById('f-paid')?.value;
@@ -135,93 +239,8 @@ export function toggleCounterFee() {
   if (n) n.style.display = v === 'Counter-Paid' ? 'block' : 'none';
 }
 
-export function openFeeModal(id, col, mode) {
-  let rec = col === 'token'
-    ? CACHE.tokens.find(t  => t.id  === id)
-    : CACHE.patients.find(p => p.id === id);
-  if (!rec) { rec = CACHE.tokens.find(t => t.id === id); if (rec) col = 'token'; }
-  if (!rec) { showToast('Record not found — try refreshing', true); return; }
-
-  document.getElementById('fee-mo-id').value  = id;
-  document.getElementById('fee-mo-col').value = col;
-  document.getElementById('fee-mo-patient').innerHTML =
-    `<strong>${rec.patientName}</strong>${rec.tokenId ? ' · ' + rec.tokenId : ''}
-     · <span style="color:var(--teal);">₨${(rec.checkupFee || 0).toLocaleString()}</span>
-     · Doctor: ${rec.doctorName || '—'}`;
-
-  ['fee-doc-section','fee-staff-section','fee-counter-section']
-    .forEach(s => document.getElementById(s).style.display = 'none');
-
-  if (mode === 'doctor') {
-    document.getElementById('fee-mo-title').textContent = '💊 Doctor Fee Collection';
-    document.getElementById('fee-doc-section').style.display = 'block';
-    document.getElementById('fee-doc-amount').value = rec.checkupFee || '';
-    document.getElementById('fee-doc-note').value   = '';
-  } else if (mode === 'confirm') {
-    document.getElementById('fee-mo-title').textContent = '✅ Confirm Fee Receipt from Doctor';
-    document.getElementById('fee-staff-section').style.display = 'block';
-    const docAmt = rec.feeCollectedAmount || rec.checkupFee || 0;
-    document.getElementById('fee-staff-info').textContent =
-      `Dr. ${rec.feeCollectedBy || rec.doctorName || 'Doctor'} collected ₨${Number(docAmt).toLocaleString()}` +
-      (rec.feeNote ? ` — Note: ${rec.feeNote}` : '');
-    document.getElementById('fee-staff-amount').value = docAmt;
-    document.getElementById('fee-staff-note').value   = '';
-  } else {
-    document.getElementById('fee-mo-title').textContent = '💵 Collect Fee at Counter';
-    document.getElementById('fee-counter-section').style.display = 'block';
-    document.getElementById('fee-counter-amount').value = rec.checkupFee || '';
-    document.getElementById('fee-counter-note').value   = '';
-  }
-  openMo('mo-fee');
-}
-
-export async function saveDoctorFee() {
-  const id  = document.getElementById('fee-mo-id').value;
-  const col = document.getElementById('fee-mo-col').value;
-  const amt  = parseFloat(document.getElementById('fee-doc-amount').value) || 0;
-  const note = document.getElementById('fee-doc-note').value.trim();
-  const rec  = col === 'token' ? CACHE.tokens.find(t => t.id === id) : CACHE.patients.find(p => p.id === id);
-  if (!rec) return;
-
-  const hist = (rec.feeHistory || []).concat([{ action: 'Doctor collected', by: CU.name || CU.email, at: new Date().toISOString(), amount: amt, note }]);
-  const ok   = await safeWrite(() => restUpdate(col === 'token' ? 'tokens' : 'patients', id, {
-    feeStatus: 'Doctor-Collected', feeCollectedBy: CU.name || CU.email,
-    feeCollectedAt: new Date().toISOString(), feeCollectedAmount: amt, feeNote: note, feeHistory: hist
-  }));
-  if (ok !== null) { showToast('✓ Fee marked as collected by doctor'); closeMo('mo-fee'); }
-}
-
-export async function confirmStaffReceipt() {
-  const id  = document.getElementById('fee-mo-id').value;
-  const col = document.getElementById('fee-mo-col').value;
-  const amt  = parseFloat(document.getElementById('fee-staff-amount').value) || 0;
-  const note = document.getElementById('fee-staff-note').value.trim();
-  const rec  = col === 'token' ? CACHE.tokens.find(t => t.id === id) : CACHE.patients.find(p => p.id === id);
-  if (!rec) return;
-
-  const hist = (rec.feeHistory || []).concat([{ action: 'Staff confirmed receipt', by: CU.name || CU.email, at: new Date().toISOString(), amount: amt, note }]);
-  const ok   = await safeWrite(() => restUpdate(col === 'token' ? 'tokens' : 'patients', id, {
-    feeStatus: 'Paid', paid: 'Paid', feeConfirmedBy: CU.name || CU.email,
-    feeConfirmedAt: new Date().toISOString(), feeNote: (rec.feeNote ? rec.feeNote + ' | ' : '') + note, feeHistory: hist
-  }));
-  if (ok !== null) { showToast('✅ Fee confirmed — marked as Paid'); closeMo('mo-fee'); }
-}
-
-export async function saveCounterFee() {
-  const id  = document.getElementById('fee-mo-id').value;
-  const col = document.getElementById('fee-mo-col').value;
-  const amt  = parseFloat(document.getElementById('fee-counter-amount').value) || 0;
-  const note = document.getElementById('fee-counter-note').value.trim();
-  const rec  = col === 'token' ? CACHE.tokens.find(t => t.id === id) : CACHE.patients.find(p => p.id === id);
-  if (!rec) return;
-
-  const hist = (rec.feeHistory || []).concat([{ action: 'Counter collected', by: CU.name || CU.email, at: new Date().toISOString(), amount: amt, note }]);
-  const ok   = await safeWrite(() => restUpdate(col === 'token' ? 'tokens' : 'patients', id, {
-    feeStatus: 'Counter-Paid', paid: 'Paid', feeCollectedBy: CU.name || CU.email,
-    feeCollectedAt: new Date().toISOString(), feeCollectedAmount: amt, feeNote: note, feeHistory: hist
-  }));
-  if (ok !== null) { showToast('✅ Fee collected at counter — marked Paid'); closeMo('mo-fee'); }
-}
+// openFeeModal, saveDoctorFee, confirmStaffReceipt, saveCounterFee
+// are all exported from fee.js and exposed to window in the bootstrap.
 
 // ─────────────────────────────────────────────────────────
 // PRESCRIPTION
@@ -519,21 +538,77 @@ export async function delCons(id) {
 }
 
 export function openUse(id, name, qty) {
-  document.getElementById('use-id').value = id;
-  document.getElementById('useinfo').innerHTML = `<strong>${name}</strong><br>Current stock: <strong>${qty}</strong>`;
-  document.getElementById('use-qty').value = '1';
-  document.getElementById('use-nt').value  = '';
+  document.getElementById('use-id').value        = id;
+  document.getElementById('use-item-name').value = name;
+  document.getElementById('useinfo').innerHTML =
+    `<strong>${name}</strong> &nbsp;·&nbsp; Current stock: <strong style="color:var(--teal-dark);">${qty}</strong>`;
+  document.getElementById('use-qty').value  = '1';
+  document.getElementById('use-nt').value   = '';
+  document.getElementById('use-act').value  = 'use';
+  document.getElementById('use-patient').value = '';
+
+  // Populate doctor dropdown
+  const doctors = CACHE.staff.filter(s => s.role === 'doctor');
+  const sel = document.getElementById('use-doctor');
+  if (sel) sel.innerHTML = '<option value="">— Select doctor or general use —</option>'
+    + doctors.map(d => `<option value="${d.doctorName||d.name}">${d.doctorName||d.name}</option>`).join('');
+
+  // Show context area for 'use' by default
+  const ctx = document.getElementById('use-context-wrap');
+  if (ctx) ctx.style.display = 'block';
+
   openMo('mo-use');
 }
+
 export async function doUseConsumable() {
-  const id  = document.getElementById('use-id').value;
-  const act = document.getElementById('use-act').value;
-  const qty = parseFloat(document.getElementById('use-qty').value) || 1;
-  const c   = CACHE.consumables.find(x => x.id === id); if (!c) return;
-  const newQty = act === 'use' ? Math.max(0, (c.quantity || 0) - qty) : (c.quantity || 0) + qty;
+  const id      = document.getElementById('use-id').value;
+  const name    = document.getElementById('use-item-name').value;
+  const act     = document.getElementById('use-act').value;
+  const qty     = parseFloat(document.getElementById('use-qty').value) || 1;
+  const note    = document.getElementById('use-nt').value.trim();
+  const purpose = document.getElementById('use-purpose')?.value || '';
+  const patient = document.getElementById('use-patient')?.value.trim() || '';
+  const doctor  = document.getElementById('use-doctor')?.value || '';
+
+  const c = CACHE.consumables.find(x => x.id === id); if (!c) return;
+
+  // Calculate new quantity
+  let newQty;
+  if (act === 'use' || act === 'expire')    newQty = Math.max(0, (c.quantity || 0) - qty);
+  else if (act === 'restock')               newQty = (c.quantity || 0) + qty;
+  else if (act === 'transfer')              newQty = Math.max(0, (c.quantity || 0) - qty);
+  else                                      newQty = (c.quantity || 0) - qty;
+
+  // Build usage log entry
+  const logEntry = {
+    action:      act,
+    qty,
+    by:          CU.name || CU.email,
+    role:        CU.role,
+    at:          new Date().toISOString(),
+    purpose:     purpose || (act === 'restock' ? 'Restock' : act === 'expire' ? 'Expired/Wasted' : ''),
+    patientName: patient,
+    doctor:      doctor,
+    note,
+    stockBefore: c.quantity || 0,
+    stockAfter:  newQty,
+  };
+
+  // Append to existing usageLog array
+  const usageLog = [...(c.usageLog || []), logEntry];
+  // Keep only last 200 entries to avoid document size limits
+  if (usageLog.length > 200) usageLog.splice(0, usageLog.length - 200);
+
   showToast('💾 Saving...');
-  await safeWrite(() => restUpdate('consumables', id, { quantity: newQty }));
-  showToast('✓ Stock updated!'); closeMo('mo-use');
+  await safeWrite(() => restUpdate('consumables', id, { quantity: newQty, usageLog }));
+
+  // Check if now below min stock — show warning
+  if (c.minStock && newQty <= (c.minStock || 0) && act !== 'restock') {
+    showToast(`⚠ ${name} is now LOW STOCK (${newQty} remaining — min: ${c.minStock})`, true);
+  } else {
+    showToast(`✓ Stock updated! ${name}: ${c.quantity||0} → ${newQty}`);
+  }
+  closeMo('mo-use');
 }
 
 // ─────────────────────────────────────────────────────────
@@ -648,6 +723,22 @@ export async function toggleUserActive(id, active) {
 // ─────────────────────────────────────────────────────────
 // CSV EXPORT
 // ─────────────────────────────────────────────────────────
+// ── Quick role assignment from staff table ────────────────
+export async function quickAssignRole(id, role) {
+  const u = CACHE.staff.find(x => x.id === id);
+  if (!u) return;
+  const roleName = role === 'admin' ? 'Admin' : role === 'doctor' ? 'Doctor' : 'Nurse/Staff';
+  try {
+    await window.showConfirmModal(
+      'Change Role',
+      `Change <strong>${u.name||u.email}</strong>'s role to <strong>${roleName}</strong>?<br>
+       <span style="font-size:13px;color:var(--color-text-secondary);">They will see a different menu next time they log in.</span>`
+    );
+  } catch { return; }
+  await safeWrite(() => restUpdate('staff', id, { role }));
+  showToast(`✓ Role changed to ${roleName}`);
+}
+
 export function exportCSV() {
   const s  = (document.getElementById('pts')?.value || '').toLowerCase();
   const pts = CACHE.patients.filter(p =>
